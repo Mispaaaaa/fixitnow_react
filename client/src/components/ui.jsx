@@ -202,9 +202,9 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
   );
 }
 
-export function Field({ label, htmlFor, error, hint, required, children }) {
+export function Field({ label, htmlFor, error, hint, required, children, className = '' }) {
   return (
-    <div>
+    <div className={className}>
       {label && (
         <label className="label" htmlFor={htmlFor}>
           {label}

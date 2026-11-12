@@ -30,7 +30,8 @@ export default function LoginPage() {
     try {
       const user = await login(values);
       toast.success(`Welcome back, ${user.name.split(' ')[0]}!`);
-      const destination = location.state?.from?.pathname || roleHome(user.role);
+      const from = location.state?.from;
+      const destination = from ? `${from.pathname}${from.search || ''}` : roleHome(user.role);
       navigate(destination, { replace: true });
     } catch (error) {
       toast.error(apiErrorMessage(error, 'Unable to log in'));

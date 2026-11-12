@@ -14,6 +14,10 @@ import TechnicianDashboardPage from './pages/technician/TechnicianDashboardPage'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import NotificationsPage from './pages/NotificationsPage';
+import RequestsPage from './pages/requests/RequestsPage';
+import RequestFormPage from './pages/requests/RequestFormPage';
+import RequestDetailPage from './pages/requests/RequestDetailPage';
+import JobBoardPage from './pages/technician/JobBoardPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -37,11 +41,16 @@ export default function App() {
         <Route element={<AppShell />}>
           <Route path="profile" element={<ProfilePage />} />
           <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="requests/:id" element={<RequestDetailPage />} />
           <Route element={<ProtectedRoute roles={['customer']} />}>
             <Route path="dashboard" element={<CustomerDashboardPage />} />
+            <Route path="requests" element={<RequestsPage />} />
+            <Route path="requests/new" element={<RequestFormPage />} />
+            <Route path="requests/:id/edit" element={<RequestFormPage />} />
           </Route>
           <Route element={<ProtectedRoute roles={['technician']} />}>
             <Route path="technician" element={<TechnicianDashboardPage />} />
+            <Route path="technician/jobs" element={<JobBoardPage />} />
           </Route>
           <Route element={<ProtectedRoute roles={['admin']} />}>
             <Route path="admin" element={<AdminDashboardPage />} />
