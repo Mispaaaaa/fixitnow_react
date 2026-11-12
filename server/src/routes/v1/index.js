@@ -5,6 +5,7 @@ import technicianRoutes from './technician.routes.js';
 import categoryRoutes from './category.routes.js';
 import dashboardRoutes from './dashboard.routes.js';
 import notificationRoutes from './notification.routes.js';
+import requestRoutes from './request.routes.js';
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use('/technicians', technicianRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/requests', requestRoutes);
 
 export default router;
