@@ -1,0 +1,207 @@
+import bcrypt from 'bcrypt';
+import { Op } from 'sequelize';
+import {
+  RefreshToken,
+  TechnicianProfile,
+  User,
+  TechnicianArea,
+  TechnicianAvailability,
+  ServiceCategory,
+} from '../models/index.js';
+import { env } from '../config/env.js';
+import ApiError from '../utils/ApiError.js';
+import { generateRefreshToken, hashToken, refreshCookieOptions } from '../utils/jwt.js';
+
+export const technicianProfileInclude = {
+  association: 'technicianProfile',
+  include: [
+    { association: 'skills', through: { attributes: [] } },
+    { association: 'areas' },
+    { association: 'availability' },
+  ],
+};
+
+export async function findFullUser(userId) {
+  return User.findByPk(userId, { include: [technicianProfileInclude] });
+}
+
+/**
+ * Creates an access token + rotating refresh token. Only the SHA-256 hash of
+ * the refresh JWT is persisted, so a database leak cannot replay sessions.
+ */
+export async function issueSession(user, req, res) {
+  const { signAccessToken } = await import('../utils/jwt.js');
+  const accessToken = signAccessToken(user);
+  const refreshToken = generateRefreshToken(user);
+  await RefreshToken.create({
+    userId: user.id,
+    tokenHash: hashToken(refreshToken),
+    expiresAt: new Date(Date.now() + env.jwt.refreshDays * 24 * 60 * 60 * 1000),
+    userAgent: req.get('user-agent')?.slice(0, 255) || null,
+    ip: req.ip,
+  });
+  res.cookie('refreshToken', refreshToken, refreshCookieOptions());
+  return accessToken;
+}
+
+export async function registerUser(input, req, res) {
+  const existing = await User.unscoped().findOne({ where: { email: input.email } });
+  if (existing) throw ApiError.conflict('An account with that email already exists');
+
+  const passwordHash = await bcrypt.hash(input.password, 12);
+  const user = await User.create({
+    name: input.name,
+    email: input.email,
+    passwordHash,
+    phone: input.phone || null,
+    role: input.role,
+  });
+
+  if (input.role === 'technician') {
+    await TechnicianProfile.create({ userId: user.id });
+  }
+
+  const accessToken = await issueSession(user, req, res);
+  const fullUser = await findFullUser(user.id);
+  return { accessToken, user: fullUser };
+}
+
+export async function loginUser(input, req, res) {
+  const user = await User.findOne({ where: { email: input.email } });
+  if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
+    throw ApiError.unauthorized('Email or password is incorrect');
+  }
+  if (!user.isActive) throw ApiError.forbidden('This account has been deactivated');
+
+  const accessToken = await issueSession(user, req, res);
+  const fullUser = await findFullUser(user.id);
+  return { accessToken, user: fullUser };
+}
+
+export async function refreshSession(rawToken, req, res) {
+  const { verifyRefreshToken } = await import('../utils/jwt.js');
+  if (!rawToken) throw ApiError.unauthorized('No refresh token');
+
+  let payload;
+  try {
+    payload = verifyRefreshToken(rawToken);
+  } catch {
+    throw ApiError.unauthorized('Refresh token is invalid or expired');
+  }
+
+  const record = await RefreshToken.findOne({
+    where: {
+      userId: payload.sub,
+      tokenHash: hashToken(rawToken),
+      revokedAt: null,
+      expiresAt: { [Op.gt]: new Date() },
+    },
+  });
+  if (!record) throw ApiError.unauthorized('Refresh token has been revoked');
+
+  const user = await User.findByPk(payload.sub);
+  if (!user || !user.isActive) throw ApiError.unauthorized('Account is not active');
+
+  record.revokedAt = new Date();
+  await record.save();
+  const accessToken = await issueSession(user, req, res);
+  const fullUser = await findFullUser(user.id);
+  return { accessToken, user: fullUser };
+}
+
+export async function revokeSession(rawToken) {
+  if (!rawToken) return;
+  await RefreshToken.update(
+    { revokedAt: new Date() },
+    { where: { tokenHash: hashToken(rawToken), revokedAt: null } }
+  );
+}
+
+export async function revokeAllSessions(userId) {
+  await RefreshToken.update({ revokedAt: new Date() }, { where: { userId, revokedAt: null } });
+}
+
+/** Technician account payload for dashboards. */
+export async function loadTechnicianProfile(userId) {
+  return TechnicianProfile.findOne({
+    where: { userId },
+    include: [
+      { association: 'skills', through: { attributes: [] } },
+      { association: 'areas' },
+      { association: 'availability' },
+      { association: 'documents' },
+    ],
+  });
+}
+
+export async function assertCategoriesExist(ids) {
+  if (!ids?.length) return;
+  const count = await ServiceCategory.count({ where: { id: ids } });
+  if (count !== new Set(ids).size) throw ApiError.badRequest('One or more skills do not exist');
+}
+
+/**
+ * Technician areas/availability use unique indexes, and soft-deleted rows still
+ * occupy those keys. Reconcile instead of delete-and-recreate so a city or day
+ * can be removed and added again without violating the index.
+ */
+export async function replaceAreas(profileId, cities, actorId) {
+  if (!cities) return;
+  const wanted = new Set(cities.map((city) => city.trim()).filter(Boolean));
+  const existing = await TechnicianArea.unscoped().findAll({
+    where: { technicianProfileId: profileId },
+  });
+
+  for (const area of existing) {
+    if (wanted.has(area.city)) {
+      if (area.deletedAt) {
+        await area.restore();
+        await area.update({ deletedBy: null });
+      }
+      wanted.delete(area.city);
+    } else if (!area.deletedAt) {
+      await area.update({ deletedBy: actorId });
+      await area.destroy();
+    }
+  }
+
+  if (wanted.size) {
+    await TechnicianArea.bulkCreate(
+      [...wanted].map((city) => ({ technicianProfileId: profileId, city }))
+    );
+  }
+}
+
+export async function replaceAvailability(profileId, availability, actorId) {
+  if (!availability) return;
+  const byDay = new Map(availability.map((row) => [Number(row.dayOfWeek), row]));
+  const existing = await TechnicianAvailability.unscoped().findAll({
+    where: { technicianProfileId: profileId },
+  });
+
+  for (const row of existing) {
+    const next = byDay.get(Number(row.dayOfWeek));
+    if (next) {
+      if (row.deletedAt) {
+        await row.restore();
+        await row.update({ deletedBy: null });
+      }
+      await row.update({
+        startTime: next.startTime,
+        endTime: next.endTime,
+        isActive: next.isActive ?? true,
+      });
+      byDay.delete(Number(row.dayOfWeek));
+    } else if (!row.deletedAt) {
+      await row.update({ deletedBy: actorId });
+      await row.destroy();
+    }
+  }
+
+  const remaining = [...byDay.values()];
+  if (remaining.length) {
+    await TechnicianAvailability.bulkCreate(
+      remaining.map((row) => ({ ...row, technicianProfileId: profileId }))
+    );
+  }
+}
