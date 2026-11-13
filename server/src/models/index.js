@@ -1,6 +1,7 @@
 import sequelize from '../config/db.js';
 import User from './user.model.js';
 import RefreshToken from './refreshToken.model.js';
+import PasswordResetToken from './passwordResetToken.model.js';
 import SavedAddress from './savedAddress.model.js';
 import ServiceCategory from './category.model.js';
 import {
@@ -19,6 +20,8 @@ import { Announcement, SiteContent, AuditLog } from './content.model.js';
 // ---- User associations -----------------------------------------------------
 User.hasMany(RefreshToken, { foreignKey: 'userId', as: 'refreshTokens' });
 RefreshToken.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+User.hasMany(PasswordResetToken, { foreignKey: 'userId', as: 'passwordResetTokens' });
+PasswordResetToken.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 User.hasMany(SavedAddress, { foreignKey: 'userId', as: 'addresses' });
 SavedAddress.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -119,6 +122,7 @@ export {
   sequelize,
   User,
   RefreshToken,
+  PasswordResetToken,
   SavedAddress,
   ServiceCategory,
   TechnicianProfile,

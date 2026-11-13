@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DOCUMENT_TYPES } from '../utils/constants.js';
+import { isServiceArea } from '../utils/serviceArea.js';
 
 export const availabilitySchema = z.object({
   dayOfWeek: z.coerce.number().int().min(0).max(6),
@@ -14,14 +15,17 @@ export const technicianProfileSchema = z.object({
   hourlyRate: z.coerce.number().min(0).max(100000).nullable().optional(),
   isAvailable: z.boolean().optional(),
   skillCategoryIds: z.array(z.coerce.number().int().positive()).max(20).optional(),
-  cities: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
+  cities: z
+    .array(z.string().trim().min(1).max(120).refine(isServiceArea, 'Choose a municipality in Oriental Mindoro'))
+    .max(20)
+    .optional(),
   availability: z.array(availabilitySchema).max(7).optional(),
 });
 
 export const directoryQuerySchema = z.object({
   q: z.string().trim().max(120).optional(),
   categoryId: z.coerce.number().int().positive().optional(),
-  city: z.string().trim().max(120).optional(),
+  city: z.string().trim().max(120).refine(isServiceArea, 'Choose a municipality in Oriental Mindoro').optional(),
   minRating: z.coerce.number().min(1).max(5).optional(),
   featured: z.enum(['true', 'false']).optional(),
   lat: z.coerce.number().min(-90).max(90).optional(),

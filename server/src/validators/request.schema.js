@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { REQUEST_STATUSES, TIME_SLOTS, URGENCIES } from '../utils/constants.js';
+import { isServiceArea } from '../utils/serviceArea.js';
 
 function todayLocal() {
   const now = new Date();
@@ -21,7 +22,7 @@ const coordinates = {
 const addressFields = {
   savedAddressId: z.coerce.number().int().positive().optional(),
   address: z.string().trim().min(5).max(500).optional(),
-  city: z.string().trim().min(1).max(120).optional(),
+  city: z.string().trim().min(1).max(120).refine(isServiceArea, 'Choose a municipality in Oriental Mindoro').optional(),
   ...coordinates,
 };
 
@@ -52,7 +53,7 @@ export const requestQuerySchema = z.object({
   q: z.string().trim().max(120).optional(),
   status: z.enum(REQUEST_STATUSES).optional(),
   categoryId: z.coerce.number().int().positive().optional(),
-  city: z.string().trim().max(120).optional(),
+  city: z.string().trim().max(120).refine(isServiceArea, 'Choose a municipality in Oriental Mindoro').optional(),
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(100).optional(),
 });

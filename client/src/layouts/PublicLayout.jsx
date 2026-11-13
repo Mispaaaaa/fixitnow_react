@@ -101,7 +101,7 @@ export default function PublicLayout() {
             <Logo light to="/" />
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
               Verified appliance technicians, transparent scheduling and live job tracking for
-              Filipino homes.
+              homes across Oriental Mindoro.
             </p>
           </div>
           <div>
@@ -116,9 +116,9 @@ export default function PublicLayout() {
           <div>
             <h3 className="text-sm font-semibold text-white">Support</h3>
             <ul className="mt-3 space-y-2 text-sm text-slate-400">
-              <li className="flex items-center gap-2"><Icon name="mail" className="h-4 w-4" /> support@fixitnow.test</li>
-              <li className="flex items-center gap-2"><Icon name="phone" className="h-4 w-4" /> +63 917 555 0199</li>
-              <li className="flex items-center gap-2"><Icon name="map-pin" className="h-4 w-4" /> Makati City, Metro Manila</li>
+              <li className="flex items-center gap-2"><Icon name="mail" className="h-4 w-4" /> fixitnow@gmail.com</li>
+              <li className="flex items-center gap-2"><Icon name="phone" className="h-4 w-4" /> Phone number pending</li>
+              <li className="flex items-center gap-2"><Icon name="map-pin" className="h-4 w-4" /> MinSU Main Campus, Victoria, Oriental Mindoro</li>
             </ul>
           </div>
         </div>

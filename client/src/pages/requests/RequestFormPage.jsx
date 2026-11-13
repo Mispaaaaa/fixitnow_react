@@ -92,7 +92,11 @@ export default function RequestFormPage() {
   const timeSlot = watch('timeSlot');
   const urgency = watch('urgency');
 
-  const addresses = useMemo(() => addressesQuery.data || [], [addressesQuery.data]);
+  const addresses = useMemo(
+    () => (addressesQuery.data || []).filter((address) => (metaQuery.data?.cities || []).includes(address.city)),
+    [addressesQuery.data, metaQuery.data]
+  );
+  const serviceCities = metaQuery.data?.cities;
   const categories = metaQuery.data?.categories || [];
   const request = requestQuery.data;
   const scheduleOnly = isEdit && request?.status === 'accepted';
@@ -472,7 +476,7 @@ export default function RequestFormPage() {
                   </span>
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">Service address</h2>
-                    <p className="text-xs text-slate-500">Where should the technician go?</p>
+                    <p className="text-xs text-slate-500">We currently serve Oriental Mindoro only.</p>
                   </div>
                 </div>
 
@@ -537,13 +541,15 @@ export default function RequestFormPage() {
                       />
                     </Field>
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label="City" htmlFor="city" error={errors.city?.message} required>
-                        <input
+                      <Field label="Municipality / city" htmlFor="city" error={errors.city?.message} required>
+                        <select
                           id="city"
                           className="input"
-                          placeholder="e.g. Quezon City"
-                          {...register('city', { required: 'Enter the city' })}
-                        />
+                          {...register('city', { required: 'Choose your municipality or city' })}
+                        >
+                          <option value="">Choose a municipality or city</option>
+                          {(serviceCities || []).map((city) => <option key={city} value={city}>{city}</option>)}
+                        </select>
                       </Field>
                       <div className="flex items-end">
                         <button type="button" className="btn-secondary w-full" onClick={useMyLocation}>
@@ -559,7 +565,7 @@ export default function RequestFormPage() {
                           type="number"
                           step="any"
                           className="input"
-                          placeholder="14.5995"
+                          placeholder="13.1537659"
                           {...register('lat', {
                             valueAsNumber: true,
                             validate: (value) =>
@@ -573,7 +579,7 @@ export default function RequestFormPage() {
                           type="number"
                           step="any"
                           className="input"
-                          placeholder="120.9842"
+                          placeholder="121.1860637"
                           {...register('lng', {
                             valueAsNumber: true,
                             validate: (value) =>

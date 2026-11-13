@@ -42,6 +42,11 @@ export default function ProfilePage() {
     queryKey: ['addresses'],
     queryFn: () => api.get('/users/me/addresses').then((res) => res.data.data.items),
   });
+  const serviceAreasQuery = useQuery({
+    queryKey: ['technicians', 'meta'],
+    queryFn: () => api.get('/technicians/meta').then((res) => res.data.data),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const saveProfile = useMutation({
     mutationFn: (values) => api.patch('/auth/me', values).then((res) => res.data.data.user),
@@ -172,50 +177,55 @@ export default function ProfilePage() {
         }
       />
 
-      <div className="card overflow-hidden">
+      <div className="card mt-4 overflow-hidden">
         <div className="h-24 bg-gradient-to-r from-brand-800 to-brand-600" />
-        <div className="flex flex-wrap items-end justify-between gap-4 px-5 pb-5 sm:px-6">
-          <div className="-mt-8 flex items-end gap-4">
-            <button
-              type="button"
-              className="group relative rounded-full"
-              onClick={() => avatarInput.current?.click()}
-              aria-label="Change profile photo"
-            >
-              <Avatar name={user.name} src={user.avatarUrl} size="xl" className="ring-4" />
-              <span className="absolute inset-0 flex items-center justify-center rounded-full bg-slate-950/50 text-white opacity-0 transition group-hover:opacity-100">
-                {avatarMutation.isPending ? <Spinner className="h-5 w-5 text-white" /> : <Icon name="camera" className="h-5 w-5" />}
-              </span>
-            </button>
-            <input
-              ref={avatarInput}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) avatarMutation.mutate(file);
-                event.target.value = '';
-              }}
-            />
-            <div className="pb-1">
-              <h2 className="text-xl font-bold text-slate-900">{user.name}</h2>
-              <p className="text-sm text-slate-500">{user.email}</p>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <span className="badge-slate capitalize">{user.role}</span>
-                {user.role === 'technician' && user.technicianProfile && (
-                  user.technicianProfile.verificationStatus === 'verified' ? (
-                    <VerifiedBadge />
-                  ) : (
-                    <span className={VERIFICATION_STYLES[user.technicianProfile.verificationStatus]}>
-                      {titleCase(user.technicianProfile.verificationStatus)}
-                    </span>
-                  )
-                )}
+        <div className="flex flex-col gap-4 px-5 pb-5 pt-0 sm:px-6 sm:pt-0">
+          <div className="-mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                className="group relative rounded-full"
+                onClick={() => avatarInput.current?.click()}
+                aria-label="Change profile photo"
+              >
+                <Avatar name={user.name} src={user.avatarUrl} size="xl" className="ring-4" />
+                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-slate-950/50 text-white opacity-0 transition group-hover:opacity-100">
+                  {avatarMutation.isPending ? <Spinner className="h-5 w-5 text-white" /> : <Icon name="camera" className="h-5 w-5" />}
+                </span>
+              </button>
+              <input
+                ref={avatarInput}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) avatarMutation.mutate(file);
+                  event.target.value = '';
+                }}
+              />
+              <div className="min-w-0">
+                <h2 className="text-xl font-bold text-slate-900">{user.name}</h2>
+                <p className="text-sm text-slate-500">{user.email}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <span className="badge-slate capitalize">{user.role}</span>
+                  {user.role === 'technician' && user.technicianProfile && (
+                    user.technicianProfile.verificationStatus === 'verified' ? (
+                      <VerifiedBadge />
+                    ) : (
+                      <span className={VERIFICATION_STYLES[user.technicianProfile.verificationStatus]}>
+                        {titleCase(user.technicianProfile.verificationStatus)}
+                      </span>
+                    )
+                  )}
+                </div>
               </div>
             </div>
+
+            <p className="self-center text-[11px] text-slate-400 sm:pr-2">
+              Click your photo to upload a new one
+            </p>
           </div>
-          <p className="pb-1 text-[11px] text-slate-400">Click your photo to upload a new one</p>
         </div>
       </div>
 
@@ -400,9 +410,26 @@ export default function ProfilePage() {
           <Field label="Complete address" htmlFor="address-line" error={addressForm.formState.errors.address?.message} required>
             <textarea id="address-line" rows={2} className="input" placeholder="House number, street, barangay" {...addressForm.register('address', { required: 'Address is required' })} />
           </Field>
-          <Field label="City" htmlFor="address-city" error={addressForm.formState.errors.city?.message} required>
-            <input id="address-city" className="input" placeholder="Quezon City" {...addressForm.register('city', { required: 'City is required' })} />
+          <Field label="Municipality / city" htmlFor="address-city" error={addressForm.formState.errors.city?.message} required>
+            <select
+              id="address-city"
+              className="input"
+              disabled={serviceAreasQuery.isLoading || serviceAreasQuery.isError}
+              {...addressForm.register('city', { required: 'Choose a municipality or city' })}
+            >
+              <option value="">Choose a municipality or city</option>
+              {(serviceAreasQuery.data?.cities || []).map((city) => <option key={city} value={city}>{city}</option>)}
+            </select>
           </Field>
+          <p className="text-xs text-slate-500">Saved service addresses must be within Oriental Mindoro.</p>
+          {serviceAreasQuery.isError && (
+            <div className="flex items-center justify-between gap-3 text-xs text-rose-600">
+              <span>Service areas could not be loaded.</span>
+              <button type="button" className="font-semibold underline" onClick={() => serviceAreasQuery.refetch()}>
+                Try again
+              </button>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-slate-600">Map pin</p>
             <button type="button" className="btn-secondary btn-sm" onClick={useCurrentLocation} disabled={locating}>
@@ -416,7 +443,7 @@ export default function ProfilePage() {
                 id="address-lat"
                 className="input"
                 inputMode="decimal"
-                placeholder="14.6760"
+                placeholder="13.1537659"
                 {...addressForm.register('lat', {
                   required: 'Latitude is required',
                   min: { value: -90, message: 'Invalid latitude' },
@@ -429,7 +456,7 @@ export default function ProfilePage() {
                 id="address-lng"
                 className="input"
                 inputMode="decimal"
-                placeholder="121.0437"
+                placeholder="121.1860637"
                 {...addressForm.register('lng', {
                   required: 'Longitude is required',
                   min: { value: -180, message: 'Invalid longitude' },

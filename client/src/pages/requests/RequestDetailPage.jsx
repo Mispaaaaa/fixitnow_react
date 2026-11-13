@@ -115,6 +115,16 @@ export default function RequestDetailPage() {
     onError: (error) => setActionError(apiErrorMessage(error)),
   });
 
+  const messageMutation = useMutation({
+    mutationFn: () => api.post('/conversations', { requestId: Number(id) }),
+    onSuccess: (response) => {
+      const conversation = response.data.data.conversation;
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      navigate(`/messages?conversation=${conversation.id}`);
+    },
+    onError: (error) => setActionError(apiErrorMessage(error)),
+  });
+
   function resetCompletion() {
     setDiagnosisNotes('');
     setFinalCost('');
@@ -173,6 +183,11 @@ export default function RequestDetailPage() {
   const canDecline = user.role === 'technician' && isAssignedTech && ['pending', 'accepted'].includes(request.status);
   const canAdvance = user.role === 'technician' && isAssignedTech && Boolean(NEXT_ACTION[request.status]);
   const customerCanChange = isOwner && ['pending', 'accepted'].includes(request.status);
+  const canMessage =
+    ['customer', 'technician'].includes(user.role) &&
+    (isOwner || isAssignedTech) &&
+    Boolean(request.technicianId) &&
+    !['pending', 'cancelled'].includes(request.status);
   const nextAction = NEXT_ACTION[request.status];
   const partsUsed = Array.isArray(request.partsUsed) ? request.partsUsed : [];
   const isBusy =
@@ -247,6 +262,21 @@ export default function RequestDetailPage() {
         </div>
 
         <div className="relative mt-5 flex flex-wrap gap-2">
+          {canMessage && (
+            <button
+              type="button"
+              className="btn-secondary border-white/20 bg-white/10 text-white hover:border-white/40 hover:bg-white/15 hover:text-white"
+              onClick={() => messageMutation.mutate()}
+              disabled={messageMutation.isPending}
+            >
+              {messageMutation.isPending ? (
+                <Spinner className="h-4 w-4" />
+              ) : (
+                <Icon name="message" className="h-4 w-4" />
+              )}
+              Message
+            </button>
+          )}
           {customerCanChange && (
             <>
               <Link

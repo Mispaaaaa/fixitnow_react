@@ -27,6 +27,13 @@ export const env = {
     accessTtl: process.env.ACCESS_TOKEN_TTL || '15m',
     refreshDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS || 30),
   },
+  smtp: {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT || 465),
+    user: process.env.SMTP_USER || '',
+    appPassword: process.env.SMTP_APP_PASSWORD || '',
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+  },
   vapid: {
     publicKey: process.env.VAPID_PUBLIC_KEY || '',
     privateKey: process.env.VAPID_PRIVATE_KEY || '',

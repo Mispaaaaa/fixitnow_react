@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import api from '../../lib/api';
+import api, { apiErrorMessage } from '../../lib/api';
 import Icon from '../../components/Icon';
 import {
   Avatar,
@@ -9,10 +9,12 @@ import {
   ErrorState,
   PageLoader,
   Pagination,
+  Spinner,
   Stars,
   VerifiedBadge,
 } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 import { formatCurrency, timeAgo } from '../../lib/utils';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -21,11 +23,23 @@ export default function TechnicianProfilePage() {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
+  const queryClient = useQueryClient();
   const [reviewsPage, setReviewsPage] = useState(1);
 
   const profileQuery = useQuery({
     queryKey: ['technicians', 'public', id],
     queryFn: () => api.get(`/technicians/${id}`).then((res) => res.data.data.profile),
+  });
+
+  const consultationMutation = useMutation({
+    mutationFn: (technicianId) => api.post('/conversations', { technicianId }),
+    onSuccess: (response) => {
+      const conversation = response.data.data.conversation;
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      navigate(`/messages?conversation=${conversation.id}`);
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, 'Could not start a conversation')),
   });
 
   const reviewsQuery = useQuery({
@@ -67,6 +81,17 @@ export default function TechnicianProfilePage() {
     if (user.role !== 'customer') return;
     navigate(target);
   }
+
+  function startConsultation() {
+    if (!user) {
+      navigate('/login', { state: { from: { pathname: `/technicians/${id}` } } });
+      return;
+    }
+    consultationMutation.mutate(profile.userId);
+  }
+
+  const isOwnProfile = user?.id === profile.userId;
+  const canConsult = !isOwnProfile && (!user || user.role === 'customer');
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:py-12">
@@ -243,6 +268,26 @@ export default function TechnicianProfilePage() {
               <Icon name="calendar" className="h-4 w-4" />
               Request this technician
             </button>
+            {canConsult && (
+              <>
+                <button
+                  type="button"
+                  className="btn-secondary mt-2 w-full"
+                  onClick={startConsultation}
+                  disabled={consultationMutation.isPending}
+                >
+                  {consultationMutation.isPending ? (
+                    <Spinner className="h-4 w-4" />
+                  ) : (
+                    <Icon name="message" className="h-4 w-4" />
+                  )}
+                  Ask a question
+                </button>
+                <p className="mt-2 text-center text-[11px] text-slate-400">
+                  Message this technician before booking.
+                </p>
+              </>
+            )}
             {!user && (
               <p className="mt-2 text-center text-[11px] text-slate-400">
                 You will be asked to log in or create a customer account.

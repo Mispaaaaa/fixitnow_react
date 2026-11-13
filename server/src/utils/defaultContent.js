@@ -18,7 +18,7 @@ const landingSections = [
       headline: 'Broken appliance?',
       headlineAccent: 'Fixed right, fixed fast.',
       subtext:
-        'Book verified appliance technicians in your area. Track every step, chat in real time, and only pay when the job is done.',
+        'Book verified appliance technicians across Oriental Mindoro. Track every step, chat in real time, and only pay when the job is done.',
       image: '/images/hero.svg',
       primaryCta: { label: 'Book a repair', to: '/register' },
       secondaryCta: { label: 'Browse technicians', to: '/technicians' },
@@ -78,7 +78,7 @@ const landingSections = [
     key: 'stats',
     visible: true,
     data: {
-      title: 'Trusted across the metro',
+      title: 'Trusted across Oriental Mindoro',
       subtitle: 'Numbers that update themselves as jobs are completed.',
     },
   },
@@ -119,9 +119,9 @@ const landingSections = [
     data: {
       title: 'Need a hand?',
       text: 'Our support desk is around for scheduling questions and service concerns.',
-      email: 'support@fixitnow.test',
-      phone: '+63 917 555 0199',
-      address: '2F Escoda Building, Makati City, Metro Manila',
+      email: 'fixitnow@gmail.com',
+      phone: 'Phone number pending',
+      address: 'MinSU Main Campus, Minas Road, Victoria, Oriental Mindoro',
       hours: 'Mon-Sat, 8:00 AM - 7:00 PM',
     },
   },

@@ -18,6 +18,14 @@ export const authLimiter = rateLimit({
   message: { success: false, message: 'Too many auth attempts. Try again in a few minutes.' },
 });
 
+export const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many password recovery attempts. Please try again later.' },
+});
+
 export const writeLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 120,

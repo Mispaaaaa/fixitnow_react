@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
 import { validateBody } from '../../middleware/validate.js';
-import { authLimiter } from '../../middleware/rateLimit.js';
+import { authLimiter, passwordResetLimiter } from '../../middleware/rateLimit.js';
 import { imageUploader } from '../../middleware/upload.js';
 import {
   registerSchema,
   loginSchema,
   updateProfileSchema,
   changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } from '../../validators/auth.schema.js';
 import {
   register,
@@ -18,12 +20,16 @@ import {
   updateProfile,
   uploadAvatar,
   changePassword,
+  forgotPassword,
+  resetPasswordWithToken,
 } from '../../controllers/auth.controller.js';
 
 const router = Router();
 
 router.post('/register', authLimiter, validateBody(registerSchema), register);
 router.post('/login', authLimiter, validateBody(loginSchema), login);
+router.post('/forgot-password', passwordResetLimiter, validateBody(forgotPasswordSchema), forgotPassword);
+router.post('/reset-password', passwordResetLimiter, validateBody(resetPasswordSchema), resetPasswordWithToken);
 router.post('/refresh', authLimiter, refresh);
 router.post('/logout', logout);
 router.get('/me', authenticate, me);

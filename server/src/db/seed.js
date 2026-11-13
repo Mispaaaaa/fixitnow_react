@@ -25,6 +25,7 @@ import {
 import { recalculateTechnicianRating } from '../services/rating.service.js';
 import { writePlaceholderPng } from '../utils/placeholderImage.js';
 import { DEFAULT_CONTENT } from '../utils/defaultContent.js';
+import { SERVICE_LOCATION } from '../utils/serviceArea.js';
 
 const PUBLIC = path.join(env.uploadsDir, 'public');
 const PRIVATE = path.join(env.uploadsDir, 'private');
@@ -247,7 +248,7 @@ async function main() {
     verificationStatus: 'verified',
     featured: true,
     skills: [cat['air-conditioning'], cat['electrical-lighting'], cat['refrigeration']],
-    cities: ['Manila', 'Quezon City', 'Caloocan'],
+    cities: ['Victoria', 'Calapan City', 'Naujan'],
   });
   const lizaProfile = await createTechProfile(liza, {
     bio: 'Appliance care specialist focused on laundry and kitchen equipment. Friendly, tidy and happy to explain what went wrong.',
@@ -256,7 +257,7 @@ async function main() {
     verificationStatus: 'verified',
     featured: true,
     skills: [cat['laundry-washing'], cat['kitchen-appliances'], cat['small-appliances']],
-    cities: ['Makati', 'Pasig', 'Taguig'],
+    cities: ['Pinamalayan', 'Pola', 'Socorro'],
   });
   const benProfile = await createTechProfile(ben, {
     bio: 'Ten years in commercial and home refrigeration. Quick with compressor diagnostics, gaskets and control boards.',
@@ -265,34 +266,34 @@ async function main() {
     verificationStatus: 'verified',
     featured: false,
     skills: [cat['refrigeration'], cat['air-conditioning']],
-    cities: ['Manila', 'Pasig', 'Quezon City'],
+    cities: ['Naujan', 'Victoria', 'Baco'],
   });
   await createTechProfile(dave, {
-    bio: 'Small appliance and electrical technician building my client base in Taguig.',
+    bio: 'Small appliance and electrical technician serving Victoria and nearby communities.',
     experienceYears: 3,
     hourlyRate: 400,
     verificationStatus: 'pending',
     skills: [cat['small-appliances'], cat['electrical-lighting']],
-    cities: ['Taguig'],
+    cities: ['Victoria'],
     submittedDaysAgo: 1,
   });
   await createTechProfile(rico, {
-    bio: 'Aircon technician serving Quezon City and nearby areas.',
+    bio: 'Aircon technician serving Calapan City and nearby areas.',
     experienceYears: 2,
     hourlyRate: 450,
     verificationStatus: 'rejected',
     verificationNote: 'The government ID photo is too blurry to read. Please resubmit a clear photo plus your TESDA certificate.',
     skills: [cat['air-conditioning']],
-    cities: ['Quezon City'],
+    cities: ['Calapan City'],
     submittedDaysAgo: 4,
   });
 
   // ---- Saved addresses ----------------------------------------------------
   const { SavedAddress } = await import('../models/index.js');
   await SavedAddress.bulkCreate([
-    { userId: maria.id, label: 'Home', address: '12 Mabini Street, Barangay 669', city: 'Manila', lat: 14.5995, lng: 120.9842, isDefault: true },
-    { userId: juan.id, label: 'Condo', address: '45 Aguirre Avenue, BF Homes', city: 'Parañaque', lat: 14.4793, lng: 121.0198, isDefault: true },
-    { userId: ana.id, label: 'House', address: '78 Shaw Boulevard, Kapitolyo', city: 'Pasig', lat: 14.5704, lng: 121.0633, isDefault: true },
+    { userId: maria.id, label: 'Home', address: SERVICE_LOCATION.address, city: SERVICE_LOCATION.city, lat: SERVICE_LOCATION.lat, lng: SERVICE_LOCATION.lng, isDefault: true },
+    { userId: juan.id, label: 'Condo', address: SERVICE_LOCATION.address, city: SERVICE_LOCATION.city, lat: SERVICE_LOCATION.lat, lng: SERVICE_LOCATION.lng, isDefault: true },
+    { userId: ana.id, label: 'House', address: SERVICE_LOCATION.address, city: SERVICE_LOCATION.city, lat: SERVICE_LOCATION.lat, lng: SERVICE_LOCATION.lng, isDefault: true },
   ]);
 
   // ---- Service requests ---------------------------------------------------
@@ -308,10 +309,10 @@ async function main() {
       urgency: 'normal',
       preferredDate: isoDate(-5),
       timeSlot: '10:00-12:00',
-      address: '12 Mabini Street, Barangay 669',
-      city: 'Manila',
-      lat: 14.5995,
-      lng: 120.9842,
+      address: SERVICE_LOCATION.address,
+      city: SERVICE_LOCATION.city,
+      lat: SERVICE_LOCATION.lat,
+      lng: SERVICE_LOCATION.lng,
       status: 'completed',
       diagnosisNotes: 'Condenser coils were heavily soiled and the run capacitor was failing. Cleaned the unit and replaced the capacitor.',
       partsUsed: [
@@ -342,10 +343,10 @@ async function main() {
       urgency: 'low',
       preferredDate: isoDate(-14),
       timeSlot: '13:00-15:00',
-      address: '78 Shaw Boulevard, Kapitolyo',
-      city: 'Pasig',
-      lat: 14.5704,
-      lng: 121.0633,
+      address: SERVICE_LOCATION.address,
+      city: SERVICE_LOCATION.city,
+      lat: SERVICE_LOCATION.lat,
+      lng: SERVICE_LOCATION.lng,
       status: 'completed',
       diagnosisNotes: 'Door gasket lost its seal. Replaced lower gasket and adjusted hinges.',
       partsUsed: [{ name: 'Lower door gasket', qty: 1, cost: 1100 }],
@@ -373,10 +374,10 @@ async function main() {
       urgency: 'normal',
       preferredDate: isoDate(1),
       timeSlot: '10:00-12:00',
-      address: '12 Mabini Street, Barangay 669',
-      city: 'Manila',
-      lat: 14.5995,
-      lng: 120.9842,
+      address: SERVICE_LOCATION.address,
+      city: SERVICE_LOCATION.city,
+      lat: SERVICE_LOCATION.lat,
+      lng: SERVICE_LOCATION.lng,
       status: 'accepted',
       acceptedAt: hours(-2),
       photos: [['microwave', '#b45309']],
@@ -396,10 +397,10 @@ async function main() {
       urgency: 'high',
       preferredDate: isoDate(0),
       timeSlot: '15:00-17:00',
-      address: '45 Aguirre Avenue, BF Homes',
-      city: 'Parañaque',
-      lat: 14.4793,
-      lng: 121.0198,
+      address: SERVICE_LOCATION.address,
+      city: SERVICE_LOCATION.city,
+      lat: SERVICE_LOCATION.lat,
+      lng: SERVICE_LOCATION.lng,
       status: 'in_progress',
       diagnosisNotes: 'Shock absorbers are worn and the door boot has a small tear.',
       acceptedAt: days(-2),
@@ -423,10 +424,10 @@ async function main() {
       urgency: 'emergency',
       preferredDate: isoDate(0),
       timeSlot: '13:00-15:00',
-      address: '45 Aguirre Avenue, BF Homes',
-      city: 'Parañaque',
-      lat: 14.4793,
-      lng: 121.0198,
+      address: SERVICE_LOCATION.address,
+      city: SERVICE_LOCATION.city,
+      lat: SERVICE_LOCATION.lat,
+      lng: SERVICE_LOCATION.lng,
       status: 'on_the_way',
       acceptedAt: hours(-4),
       photos: [['fridge', '#0f766e']],
@@ -447,10 +448,10 @@ async function main() {
       urgency: 'high',
       preferredDate: isoDate(2),
       timeSlot: '08:00-10:00',
-      address: '78 Shaw Boulevard, Kapitolyo',
-      city: 'Pasig',
-      lat: 14.5704,
-      lng: 121.0633,
+      address: SERVICE_LOCATION.address,
+      city: SERVICE_LOCATION.city,
+      lat: SERVICE_LOCATION.lat,
+      lng: SERVICE_LOCATION.lng,
       status: 'pending',
       photos: [['window-ac', '#0369a1']],
       history: [['pending', null, -1, 'Request submitted and open to verified technicians']],
@@ -466,10 +467,10 @@ async function main() {
       urgency: 'high',
       preferredDate: isoDate(-3),
       timeSlot: '17:00-19:00',
-      address: '45 Aguirre Avenue, BF Homes',
-      city: 'Parañaque',
-      lat: 14.4793,
-      lng: 121.0198,
+      address: SERVICE_LOCATION.address,
+      city: SERVICE_LOCATION.city,
+      lat: SERVICE_LOCATION.lat,
+      lng: SERVICE_LOCATION.lng,
       status: 'cancelled',
       cancellationReason: 'A family friend fixed the outlet before the visit.',
       cancelledBy: juan.id,
@@ -491,10 +492,10 @@ async function main() {
       urgency: 'normal',
       preferredDate: isoDate(-20),
       timeSlot: '13:00-15:00',
-      address: '45 Aguirre Avenue, BF Homes',
-      city: 'Parañaque',
-      lat: 14.4793,
-      lng: 121.0198,
+      address: SERVICE_LOCATION.address,
+      city: SERVICE_LOCATION.city,
+      lat: SERVICE_LOCATION.lat,
+      lng: SERVICE_LOCATION.lng,
       status: 'completed',
       diagnosisNotes: 'Loose neutral connection in the outlet and a weak breaker. Replaced both.',
       partsUsed: [{ name: '20A breaker', qty: 1, cost: 380 }],
@@ -521,10 +522,10 @@ async function main() {
       urgency: 'low',
       preferredDate: isoDate(3),
       timeSlot: '13:00-15:00',
-      address: '12 Mabini Street, Barangay 669',
-      city: 'Manila',
-      lat: 14.5995,
-      lng: 120.9842,
+      address: SERVICE_LOCATION.address,
+      city: SERVICE_LOCATION.city,
+      lat: SERVICE_LOCATION.lat,
+      lng: SERVICE_LOCATION.lng,
       status: 'pending',
       history: [['pending', null, 0, 'Request submitted']],
     },
@@ -662,14 +663,15 @@ async function main() {
     ],
   });
 
-  await createConversation({
+  const kitchenConversation = await createConversation({
     request: requests.acceptedKitchen,
     customerId: maria.id,
     technicianId: liza.id,
     entries: [
       { from: 'customer', body: 'Hello Liza! The microwave is the Fujidenzo one from the request photos.', at: hours(-3), seen: true },
       { from: 'technician', body: 'Got it. Sounds like the turntable motor or a door switch. I will bring both just in case.', at: hours(-2.5), seen: true },
-      { from: 'customer', body: 'Perfect, see you tomorrow.', at: hours(-2), seen: false },
+      { from: 'customer', body: 'Perfect, see you tomorrow.', at: hours(-2), seen: true },
+      { from: 'technician', body: 'See you at 10 AM. I will message when I am on the way.', at: hours(-1.4), seen: false },
     ],
   });
 
@@ -693,7 +695,7 @@ async function main() {
       { from: 'technician', body: 'I am 15 minutes away. Bringing a start relay and capacitor.', at: minutes(-30), seen: true },
       { from: 'technician', type: 'location', at: minutes(-4), seen: false },
     ],
-    location: { lat: 14.4928, lng: 121.0321 },
+    location: { lat: SERVICE_LOCATION.lat, lng: SERVICE_LOCATION.lng },
   });
 
   await createConversation({
@@ -701,7 +703,7 @@ async function main() {
     customerId: ana.id,
     technicianId: carlos.id,
     entries: [
-      { from: 'customer', body: 'Hi Carlos, do you service commercial chiller units in Pasig?', at: days(-2.2), seen: true },
+      { from: 'customer', body: 'Hi Carlos, do you service commercial chiller units in Calapan City?', at: days(-2.2), seen: true },
       { from: 'technician', body: 'Yes, small to medium chillers. Send the model plate photo and I can estimate.', at: days(-2.1), seen: true },
       { from: 'customer', body: 'Will do, thanks!', at: days(-2), seen: true },
     ],
@@ -748,11 +750,11 @@ async function main() {
     { userId: admin.id, type: 'verification_submitted', title: 'New verification request', body: 'Dave Lim submitted documents for review.', data: { url: '/admin/verification' }, createdAt: days(-1), updatedAt: days(-1) },
     { userId: admin.id, type: 'system', title: 'Welcome to FixitNow admin', body: 'Use the dashboard to monitor requests and verify technicians.', readAt: days(-9), data: { url: '/admin' }, createdAt: days(-10), updatedAt: days(-10) },
     { userId: maria.id, type: 'request_accepted', title: 'Carlos accepted your request', body: 'Your aircon repair is scheduled for tomorrow.', data: { requestId: requests.completedAC.id, url: `/requests/${requests.completedAC.id}` }, readAt: days(-5), createdAt: days(-6), updatedAt: days(-6) },
-    { userId: maria.id, type: 'chat_message', title: 'New message from Liza Cruz', body: 'Got it. Sounds like the turntable motor or a door switch.', data: { conversationId: 2, url: '/messages' }, createdAt: hours(-2.5), updatedAt: hours(-2.5) },
+    { userId: maria.id, type: 'chat_message', title: 'New message from Liza Cruz', body: 'See you at 10 AM. I will message when I am on the way.', data: { conversationId: kitchenConversation.conversation.id, url: `/messages?conversation=${kitchenConversation.conversation.id}` }, createdAt: hours(-1.4), updatedAt: hours(-1.4) },
     { userId: juan.id, type: 'status_changed', title: 'Your fridge technician is on the way', body: 'Ben is heading to your address now.', data: { requestId: requests.onTheWayFridge.id, url: `/requests/${requests.onTheWayFridge.id}` }, createdAt: minutes(-20), updatedAt: minutes(-20) },
     { userId: carlos.id, type: 'new_review', title: 'Maria left you a 5-star review', body: '"Carlos arrived on time and left the area spotless."', data: { reviewId: review1.id, url: '/technician/reviews' }, createdAt: days(-5), updatedAt: days(-5) },
     { userId: carlos.id, type: 'new_review', title: 'Ana left you a review', body: 'You received 4 stars for a completed job.', data: { reviewId: review2.id, url: '/technician/reviews' }, readAt: days(-14), createdAt: days(-14), updatedAt: days(-14) },
-    { userId: liza.id, type: 'job_reminder', title: 'Job starts in about an hour', body: 'Washing machine repair at BF Homes today.', data: { requestId: requests.inProgressLaundry.id, url: '/technician' }, createdAt: minutes(-70), updatedAt: minutes(-70) },
+    { userId: liza.id, type: 'job_reminder', title: 'Job starts in about an hour', body: 'Washing machine repair at MinSU Main Campus today.', data: { requestId: requests.inProgressLaundry.id, url: '/technician' }, createdAt: minutes(-70), updatedAt: minutes(-70) },
   ]);
 
   // ---- Announcements and editable content --------------------------------

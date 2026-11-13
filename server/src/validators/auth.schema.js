@@ -27,3 +27,12 @@ export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: password,
 });
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(32).max(200),
+  newPassword: password,
+});

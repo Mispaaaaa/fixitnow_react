@@ -3,6 +3,15 @@ import { SavedAddress } from '../models/index.js';
 import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { softDeleteRecord } from '../utils/softDelete.js';
+import { isServiceLocation } from '../utils/serviceArea.js';
+
+function assertServiceLocation(location) {
+  if (!isServiceLocation(location)) {
+    throw ApiError.badRequest(
+      'FixitNow currently serves Oriental Mindoro only. Choose a municipality in the province and a location pin within the service area.'
+    );
+  }
+}
 
 export const listAddresses = asyncHandler(async (req, res) => {
   const addresses = await SavedAddress.findAll({
@@ -16,6 +25,7 @@ export const listAddresses = asyncHandler(async (req, res) => {
 });
 
 export const createAddress = asyncHandler(async (req, res) => {
+  assertServiceLocation(req.body);
   const transaction = await sequelize.transaction();
   try {
     if (req.body.isDefault) {
@@ -41,6 +51,11 @@ export const updateAddress = asyncHandler(async (req, res) => {
     where: { id: req.params.id, userId: req.user.id },
   });
   if (!address) throw ApiError.notFound('Address not found');
+  assertServiceLocation({
+    city: req.body.city ?? address.city,
+    lat: req.body.lat ?? address.lat,
+    lng: req.body.lng ?? address.lng,
+  });
 
   const transaction = await sequelize.transaction();
   try {

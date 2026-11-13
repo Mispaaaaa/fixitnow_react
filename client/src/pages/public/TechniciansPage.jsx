@@ -80,7 +80,7 @@ export default function TechniciansPage() {
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-500">
           Every professional here passed identity, skills and clearance checks. Filter by the
-          appliance, your city and the rating other customers gave them.
+          appliance, your municipality in Oriental Mindoro and the rating other customers gave them.
         </p>
       </div>
 

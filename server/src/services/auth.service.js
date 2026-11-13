@@ -1,7 +1,9 @@
 import bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'node:crypto';
 import { Op } from 'sequelize';
 import {
   RefreshToken,
+  PasswordResetToken,
   TechnicianProfile,
   User,
   TechnicianArea,
@@ -11,6 +13,7 @@ import {
 import { env } from '../config/env.js';
 import ApiError from '../utils/ApiError.js';
 import { generateRefreshToken, hashToken, refreshCookieOptions } from '../utils/jwt.js';
+import { sendPasswordResetEmail } from './email.service.js';
 
 export const technicianProfileInclude = {
   association: 'technicianProfile',
@@ -119,6 +122,62 @@ export async function revokeSession(rawToken) {
 
 export async function revokeAllSessions(userId) {
   await RefreshToken.update({ revokedAt: new Date() }, { where: { userId, revokedAt: null } });
+}
+
+export async function requestPasswordReset(email) {
+  if (!env.smtp.user || !env.smtp.appPassword || !env.smtp.from) {
+    throw new ApiError(503, 'Password recovery email is not configured. Set Gmail SMTP credentials in server/.env.');
+  }
+  const user = await User.findOne({ where: { email, isActive: true } });
+  if (!user) return;
+
+  const token = randomBytes(32).toString('hex');
+  const tokenHash = createHash('sha256').update(token).digest('hex');
+  await PasswordResetToken.destroy({ where: { userId: user.id } });
+  const resetRecord = await PasswordResetToken.create({
+    userId: user.id,
+    tokenHash,
+    expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+  });
+
+  try {
+    await sendPasswordResetEmail({ to: user.email, name: user.name, token });
+  } catch (error) {
+    await resetRecord.destroy();
+    throw error;
+  }
+}
+
+export async function resetPassword(token, newPassword) {
+  const tokenHash = createHash('sha256').update(token).digest('hex');
+  await User.sequelize.transaction(async (transaction) => {
+    const resetRecord = await PasswordResetToken.findOne({
+      where: {
+        tokenHash,
+        usedAt: null,
+        expiresAt: { [Op.gt]: new Date() },
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+    if (!resetRecord) throw ApiError.badRequest('This password reset link is invalid or expired');
+
+    const user = await User.findByPk(resetRecord.userId, { transaction, lock: transaction.LOCK.UPDATE });
+    if (!user || !user.isActive) {
+      throw ApiError.badRequest('This password reset link is invalid or expired');
+    }
+
+    await user.update({ passwordHash: await bcrypt.hash(newPassword, 12) }, { transaction });
+    await resetRecord.update({ usedAt: new Date() }, { transaction });
+    await RefreshToken.update(
+      { revokedAt: new Date() },
+      { where: { userId: user.id, revokedAt: null }, transaction }
+    );
+    await PasswordResetToken.destroy({
+      where: { userId: user.id, id: { [Op.ne]: resetRecord.id } },
+      transaction,
+    });
+  });
 }
 
 /** Technician account payload for dashboards. */

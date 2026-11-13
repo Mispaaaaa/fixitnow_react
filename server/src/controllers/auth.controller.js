@@ -8,6 +8,8 @@ import {
   findFullUser,
   loginUser,
   refreshSession,
+  requestPasswordReset,
+  resetPassword,
   registerUser,
   revokeAllSessions,
   revokeSession,
@@ -30,6 +32,24 @@ export const login = asyncHandler(async (req, res) => {
     success: true,
     message: 'Logged in',
     data: { accessToken, user: userJSON(user) },
+  });
+});
+
+export const forgotPassword = asyncHandler(async (req, res) => {
+  await requestPasswordReset(req.body.email);
+  res.json({
+    success: true,
+    message: 'If an active account exists for that email, password reset instructions have been sent.',
+    data: null,
+  });
+});
+
+export const resetPasswordWithToken = asyncHandler(async (req, res) => {
+  await resetPassword(req.body.token, req.body.newPassword);
+  res.json({
+    success: true,
+    message: 'Password reset successfully. Please sign in with your new password.',
+    data: null,
   });
 });
 

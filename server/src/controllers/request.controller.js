@@ -13,6 +13,8 @@ import asyncHandler from '../utils/asyncHandler.js';
 import { getPagination, pagedData } from '../utils/pagination.js';
 import { softDeleteRecord } from '../utils/softDelete.js';
 import { notifyUser } from '../services/notification.service.js';
+import { ensureRequestConversation } from '../services/chat.service.js';
+import { isServiceLocation } from '../utils/serviceArea.js';
 import {
   STATUS_LABELS,
   STATUS_TRANSITIONS,
@@ -102,6 +104,7 @@ async function resolveAddress(body, userId, existing = null) {
       where: { id: body.savedAddressId, userId },
     });
     if (!saved) throw ApiError.badRequest('The selected saved address was not found');
+    assertServiceLocation(saved);
     return { address: saved.address, city: saved.city, lat: saved.lat, lng: saved.lng };
   }
 
@@ -119,7 +122,16 @@ async function resolveAddress(body, userId, existing = null) {
   if (!merged.address || !merged.city || merged.lat === undefined || merged.lng === undefined) {
     throw ApiError.badRequest('Provide the complete address, city, latitude and longitude');
   }
+  assertServiceLocation(merged);
   return merged;
+}
+
+function assertServiceLocation(location) {
+  if (!isServiceLocation(location)) {
+    throw ApiError.badRequest(
+      'FixitNow currently serves Oriental Mindoro only. Choose a municipality in the province and a location pin within the service area.'
+    );
+  }
 }
 
 async function assertCategory(categoryId) {
@@ -128,12 +140,17 @@ async function assertCategory(categoryId) {
   return category;
 }
 
-async function preferredTechnician(id) {
+async function preferredTechnician(id, city) {
   const profile = await TechnicianProfile.findOne({
     where: { userId: id, verificationStatus: 'verified' },
-    include: [{ association: 'user', attributes: ['id', 'name', 'isActive'], where: { isActive: true } }],
+    include: [
+      { association: 'user', attributes: ['id', 'name', 'isActive'], where: { isActive: true } },
+      { association: 'areas', where: { city }, required: true },
+    ],
   });
-  if (!profile) throw ApiError.badRequest('The selected technician is not available for booking');
+  if (!profile) {
+    throw ApiError.badRequest('The selected technician does not serve this location');
+  }
   return profile;
 }
 
@@ -183,7 +200,7 @@ export const createRequest = asyncHandler(async (req, res) => {
 
   let technician = null;
   if (body.preferredTechnicianId) {
-    technician = await preferredTechnician(body.preferredTechnicianId);
+    technician = await preferredTechnician(body.preferredTechnicianId, address.city);
   }
 
   const request = await sequelize.transaction(async (transaction) => {
@@ -335,7 +352,9 @@ export const availableJobs = asyncHandler(async (req, res) => {
   where.categoryId = where.categoryId
     ? { [Op.eq]: where.categoryId }
     : { [Op.in]: skillIds };
-  if (cities.length) where.city = where.city || { [Op.in]: cities };
+  where.city = {
+    [Op.in]: query.city ? cities.filter((city) => city === query.city) : cities,
+  };
 
   const { count, rows } = await ServiceRequest.findAndCountAll({
     where,
@@ -487,7 +506,7 @@ export const acceptRequest = asyncHandler(async (req, res) => {
       if (!skillIds.includes(locked.categoryId)) {
         throw ApiError.forbidden('This job is outside your listed skills');
       }
-      if (cities.length && !cities.includes(locked.city)) {
+      if (!cities.includes(locked.city)) {
         throw ApiError.forbidden('This job is outside your service areas');
       }
     }
@@ -526,6 +545,9 @@ export const acceptRequest = asyncHandler(async (req, res) => {
     title: 'Your request was accepted',
     body: `${req.user.name} will handle your ${request.preferredDate} ${request.timeSlot} visit.`,
     data: { url: `/requests/${request.id}`, requestId: request.id },
+  });
+  await ensureRequestConversation(request).catch((error) => {
+    console.error('Could not open request conversation:', error.message);
   });
 
   const full = await loadRequest(request.id, req.user);

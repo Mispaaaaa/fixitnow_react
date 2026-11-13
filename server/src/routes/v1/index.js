@@ -6,6 +6,8 @@ import categoryRoutes from './category.routes.js';
 import dashboardRoutes from './dashboard.routes.js';
 import notificationRoutes from './notification.routes.js';
 import requestRoutes from './request.routes.js';
+import chatRoutes from './chat.routes.js';
+import adminRoutes from './admin.routes.js';
 
 const router = Router();
 
@@ -20,5 +22,7 @@ router.use('/categories', categoryRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/requests', requestRoutes);
+router.use('/conversations', chatRoutes);
+router.use('/admin', adminRoutes);
 
 export default router;

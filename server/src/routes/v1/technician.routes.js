@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { authenticate, authorize, optionalAuth } from '../../middleware/auth.js';
 import { validateBody, validateQuery } from '../../middleware/validate.js';
+import { documentUploader } from '../../middleware/upload.js';
 import {
   directoryQuerySchema,
+  documentUploadSchema,
   technicianProfileSchema,
 } from '../../validators/technician.schema.js';
 import {
@@ -12,6 +14,7 @@ import {
   getMyTechnicianProfile,
   updateMyTechnicianProfile,
   getFilterMeta,
+  submitTechnicianDocument,
 } from '../../controllers/technician.controller.js';
 
 const router = Router();
@@ -31,6 +34,14 @@ router.patch(
   authorize('technician'),
   validateBody(technicianProfileSchema),
   updateMyTechnicianProfile
+);
+router.post(
+  '/me/documents',
+  authenticate,
+  authorize('technician'),
+  validateQuery(documentUploadSchema),
+  documentUploader.single('document'),
+  submitTechnicianDocument
 );
 
 router.get('/:id/reviews', listTechnicianReviews);
