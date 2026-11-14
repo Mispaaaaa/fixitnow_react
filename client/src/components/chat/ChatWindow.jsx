@@ -25,6 +25,19 @@ function dayLabel(value) {
   return formatDate(date, { weekday: 'short' });
 }
 
+function locationMapUrl(location) {
+  const lat = Number(location.lat);
+  const lng = Number(location.lng);
+  return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`;
+}
+
+function geolocationErrorMessage(error) {
+  if (error.code === 1) return 'Allow location access in your browser and try again.';
+  if (error.code === 2) return 'Your current location could not be determined. Try again outdoors.';
+  if (error.code === 3) return 'Getting your current location took too long. Please try again.';
+  return 'Your current location could not be shared. Check your browser location settings.';
+}
+
 export default function ChatWindow({ conversation, onBack }) {
   const { user } = useAuth();
   const { socket } = useSocket();
@@ -33,6 +46,7 @@ export default function ChatWindow({ conversation, onBack }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [sharingLocation, setSharingLocation] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [typingName, setTypingName] = useState('');
   const bottomRef = useRef(null);
@@ -87,6 +101,11 @@ export default function ChatWindow({ conversation, onBack }) {
     : otherUser?.name || 'Conversation';
   const isClosed = conversation.request?.status === 'cancelled';
   const canReply = !isAdmin && !isClosed;
+  const canShareLocation =
+    canReply &&
+    user.role === 'customer' &&
+    Boolean(conversation.request?.id) &&
+    ['accepted', 'on_the_way', 'arrived', 'in_progress'].includes(conversation.request?.status);
   const requestLink = conversation.request ? `/requests/${conversation.request.id}` : null;
   const latest = messages[messages.length - 1];
 
@@ -270,6 +289,38 @@ export default function ChatWindow({ conversation, onBack }) {
     }
   }
 
+  async function shareServiceLocation() {
+    if (!canShareLocation || sharingLocation) return;
+    if (!navigator.geolocation) {
+      toast.error('This browser does not support location sharing.');
+      return;
+    }
+    setSharingLocation(true);
+    try {
+      const position = await new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 20000,
+        })
+      );
+      const response = await api.post(`/conversations/${conversation.id}/location`, {
+        lat: Number(position.coords.latitude.toFixed(7)),
+        lng: Number(position.coords.longitude.toFixed(7)),
+      });
+      appendMessage(response.data.data.message);
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    } catch (error) {
+      toast.error(
+        typeof error?.code === 'number'
+          ? geolocationErrorMessage(error)
+          : apiErrorMessage(error, 'Current location could not be shared')
+      );
+    } finally {
+      setSharingLocation(false);
+    }
+  }
+
   function addEmoji(emoji) {
     setText((current) => `${current}${emoji}`);
     setEmojiOpen(false);
@@ -426,12 +477,31 @@ export default function ChatWindow({ conversation, onBack }) {
                       >
                         <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide">
                           <Icon name="map-pin" className="h-4 w-4" />
-                          Live location shared
+                          {message.locationShare.mode === 'live'
+                            ? 'Live location shared'
+                            : 'Current location shared'}
                         </p>
+                        {message.body && (
+                          <p className={cn('mt-1 text-xs', mine ? 'text-brand-100' : 'text-slate-500')}>
+                            {message.body}
+                          </p>
+                        )}
                         <p className={cn('mt-1 text-xs', mine ? 'text-brand-100' : 'text-slate-500')}>
                           {Number(message.locationShare.lat).toFixed(5)},{' '}
                           {Number(message.locationShare.lng).toFixed(5)}
                         </p>
+                        <a
+                          href={locationMapUrl(message.locationShare)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={cn(
+                            'mt-2 inline-flex items-center gap-1.5 text-xs font-semibold underline',
+                            mine ? 'text-white' : 'text-brand-700'
+                          )}
+                        >
+                          <Icon name="external-link" className="h-3.5 w-3.5" />
+                          Open map
+                        </a>
                         {message.locationShare.stoppedAt && (
                           <p className={cn('mt-1 text-[11px]', mine ? 'text-brand-200' : 'text-slate-400')}>
                             Sharing stopped
@@ -509,18 +579,36 @@ export default function ChatWindow({ conversation, onBack }) {
                   'flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-800',
                   uploading && 'pointer-events-none opacity-50'
                 )}
-                title="Attach a photo"
+                title="Take a photo or attach an image"
               >
                 {uploading ? <Spinner className="h-4 w-4" /> : <Icon name="camera" className="h-5 w-5" />}
                 <input
                   ref={fileRef}
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
                   className="sr-only"
                   onChange={uploadImage}
                   disabled={uploading}
                 />
               </label>
+
+              {canShareLocation && (
+                <button
+                  type="button"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={shareServiceLocation}
+                  disabled={sharingLocation}
+                  aria-label="Share my current location"
+                  title="Share my current location"
+                >
+                  {sharingLocation ? (
+                    <Spinner className="h-4 w-4" />
+                  ) : (
+                    <Icon name="map-pin" className="h-5 w-5" />
+                  )}
+                </button>
+              )}
 
               <textarea
                 ref={textareaRef}
@@ -567,9 +655,6 @@ export default function ChatWindow({ conversation, onBack }) {
                 {sending ? <Spinner className="h-4 w-4" /> : <Icon name="arrow-up" className="h-4 w-4" />}
               </button>
             </div>
-            <p className="mt-1.5 hidden text-[10px] text-slate-400 sm:block">
-              Enter sends · Shift + Enter adds a line break
-            </p>
           </form>
         )}
       </footer>

@@ -163,7 +163,10 @@ export async function createMessage({
   await conversation.update({ lastMessageAt: message.createdAt });
 
   const full = await Message.findByPk(message.id, {
-    include: [{ association: 'sender', attributes: ['id', 'name', 'avatarUrl', 'role'] }],
+    include: [
+      { association: 'sender', attributes: ['id', 'name', 'avatarUrl', 'role'] },
+      ...(locationShareId ? [{ association: 'locationShare' }] : []),
+    ],
   });
   const payload = messageJSON(full);
 
@@ -176,7 +179,7 @@ export async function createMessage({
       type === 'image'
         ? 'Sent a photo'
         : type === 'location'
-          ? 'Shared a live location'
+          ? 'Shared their current location'
           : text.length > 90
             ? `${text.slice(0, 87)}...`
             : text;

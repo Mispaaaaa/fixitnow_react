@@ -14,6 +14,13 @@ import { getPagination, pagedData } from '../utils/pagination.js';
 import { softDeleteRecord } from '../utils/softDelete.js';
 import { notifyUser } from '../services/notification.service.js';
 import { ensureRequestConversation } from '../services/chat.service.js';
+import {
+  createLocationShare,
+  emitLocationShare,
+  findActiveLocationShare,
+  locationShareJSON,
+  stopActiveLocationShare,
+} from '../services/location.service.js';
 import { isServiceLocation } from '../utils/serviceArea.js';
 import {
   STATUS_LABELS,
@@ -389,6 +396,80 @@ export const getRequest = asyncHandler(async (req, res) => {
   });
 });
 
+function assertLocationParticipant(request, viewer) {
+  const isOwner = Number(request.customerId) === Number(viewer.id);
+  const isAssignedTech = Number(request.technicianId) === Number(viewer.id);
+  if (viewer.role === 'admin' || (!isOwner && !isAssignedTech)) {
+    throw ApiError.notFound('Service request not found');
+  }
+  return { isOwner, isAssignedTech };
+}
+
+export const getRequestLocation = asyncHandler(async (req, res) => {
+  const request = await ServiceRequest.findByPk(req.params.id);
+  if (!request) throw ApiError.notFound('Service request not found');
+  assertLocationParticipant(request, req.user);
+  const share =
+    request.status === 'on_the_way' ? await findActiveLocationShare(request.id) : null;
+  res.json({ success: true, data: { location: locationShareJSON(share) } });
+});
+
+export const startRequestLocation = asyncHandler(async (req, res) => {
+  const request = await ServiceRequest.findByPk(req.params.id);
+  if (!request) throw ApiError.notFound('Service request not found');
+  const { isAssignedTech } = assertLocationParticipant(request, req.user);
+  if (!isAssignedTech || req.user.role !== 'technician') {
+    throw ApiError.forbidden('Only the assigned technician can share live location');
+  }
+  if (request.status !== 'on_the_way') {
+    throw ApiError.conflict('Live location can be shared while the technician is on the way');
+  }
+
+  const conversation = await ensureRequestConversation(request);
+  const share = await createLocationShare(request, conversation.id, req.user.id, req.body);
+  res.status(201).json({
+    success: true,
+    message: 'Live location sharing started',
+    data: { location: locationShareJSON(share) },
+  });
+});
+
+export const updateRequestLocation = asyncHandler(async (req, res) => {
+  const request = await ServiceRequest.findByPk(req.params.id);
+  if (!request) throw ApiError.notFound('Service request not found');
+  const { isAssignedTech } = assertLocationParticipant(request, req.user);
+  if (!isAssignedTech || req.user.role !== 'technician') {
+    throw ApiError.forbidden('Only the assigned technician can share live location');
+  }
+  if (request.status !== 'on_the_way') {
+    await stopActiveLocationShare(request);
+    throw ApiError.conflict('Live location sharing has ended because the job status changed');
+  }
+
+  const share = await findActiveLocationShare(request.id);
+  if (!share || Number(share.userId) !== Number(req.user.id)) {
+    throw ApiError.conflict('Start live location sharing before sending location updates');
+  }
+  await share.update(req.body);
+  emitLocationShare(request, share);
+  res.json({ success: true, data: { location: locationShareJSON(share) } });
+});
+
+export const stopRequestLocation = asyncHandler(async (req, res) => {
+  const request = await ServiceRequest.findByPk(req.params.id);
+  if (!request) throw ApiError.notFound('Service request not found');
+  const { isAssignedTech } = assertLocationParticipant(request, req.user);
+  if (!isAssignedTech || req.user.role !== 'technician') {
+    throw ApiError.forbidden('Only the assigned technician can stop live location sharing');
+  }
+  const share = await stopActiveLocationShare(request);
+  res.json({
+    success: true,
+    message: 'Live location sharing stopped',
+    data: { location: locationShareJSON(share) },
+  });
+});
+
 export const updateRequest = asyncHandler(async (req, res) => {
   const body = req.body;
   const request = await ServiceRequest.findOne({
@@ -658,6 +739,7 @@ export const updateRequestStatus = asyncHandler(async (req, res) => {
   });
 
   const statusText = STATUS_LABELS[body.status] || body.status;
+  if (body.status !== 'on_the_way') await stopActiveLocationShare(request);
   await safeNotify({
     userId: request.customerId,
     type: 'status_changed',
@@ -716,6 +798,7 @@ export const cancelRequest = asyncHandler(async (req, res) => {
     return locked;
   });
 
+  await stopActiveLocationShare(request);
   if (request.technicianId && Number(request.technicianId) !== Number(req.user.id)) {
     await safeNotify({
       userId: request.technicianId,
@@ -743,6 +826,7 @@ export const deleteRequest = asyncHandler(async (req, res) => {
   if (req.user.role !== 'admin' && request.status !== 'cancelled') {
     throw ApiError.badRequest('Only cancelled requests can be deleted');
   }
+  await stopActiveLocationShare(request);
   await softDeleteRecord(request, req.user.id);
   res.json({ success: true, message: 'Service request deleted', data: null });
 });

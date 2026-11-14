@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import {
   Conversation,
+  LocationShare,
   Message,
   ServiceRequest,
   TechnicianProfile,
@@ -12,6 +13,7 @@ import { isOnline } from '../sockets/presence.js';
 import {
   conversationJSON,
   countUnread,
+  assertCanSend,
   createMessage,
   ensureRequestConversation,
   findExistingConsultation,
@@ -260,6 +262,49 @@ export const sendMessage = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: 'Message sent',
+    data: { message },
+  });
+});
+
+export const shareRequestLocation = asyncHandler(async (req, res) => {
+  const conversation = await loadConversation(req.params.id, req.user);
+  if (req.user.role !== 'customer') {
+    throw ApiError.forbidden('Only the customer can share the service location');
+  }
+  if (!conversation.requestId) {
+    throw ApiError.conflict('Location sharing is available in service request conversations');
+  }
+  assertCanSend(conversation, req.user);
+
+  const request = await ServiceRequest.findOne({
+    where: { id: conversation.requestId, customerId: req.user.id },
+    attributes: ['id', 'status'],
+  });
+  if (!request) throw ApiError.notFound('Service request not found');
+  if (!['accepted', 'on_the_way', 'arrived', 'in_progress'].includes(request.status)) {
+    throw ApiError.conflict('The service location can only be shared for an active request');
+  }
+
+  const share = await LocationShare.create({
+    conversationId: conversation.id,
+    requestId: request.id,
+    userId: req.user.id,
+    lat: req.body.lat,
+    lng: req.body.lng,
+    mode: 'snapshot',
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  });
+  const message = await createMessage({
+    conversation,
+    sender: req.user,
+    type: 'location',
+    body: 'Shared my current location',
+    locationShareId: share.id,
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'Service location shared',
     data: { message },
   });
 });

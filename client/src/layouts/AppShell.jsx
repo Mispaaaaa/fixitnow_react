@@ -47,7 +47,7 @@ const customerTabs = [
 
 function SidebarContent({ nav, user, logout, onNavigate }) {
   return (
-    <div className="flex h-full flex-col bg-slate-100/80">
+    <div className="flex h-full flex-col bg-slate-100">
       <div className="px-5 pb-5 pt-5">
         <Logo to={user.role === 'admin' ? '/admin' : '/technician'} />
       </div>

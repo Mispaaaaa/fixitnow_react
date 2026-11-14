@@ -23,6 +23,11 @@ body {
   @apply bg-slate-50 text-slate-800 antialiased;
 }
 
+.leaflet-container {
+  z-index: 0;
+  font: inherit;
+}
+
 ::selection {
   @apply bg-brand-200 text-brand-900;
 }

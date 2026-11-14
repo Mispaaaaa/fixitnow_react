@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api, { apiErrorMessage } from '../../lib/api';
@@ -22,6 +22,8 @@ import {
   STATUS_STYLES,
   titleCase,
 } from '../../lib/utils';
+
+const RequestLocationMap = lazy(() => import('../../components/requests/RequestLocationMap'));
 
 const NEXT_ACTION = {
   accepted: { label: 'Mark on the way', icon: 'navigation', status: 'on_the_way' },
@@ -349,6 +351,12 @@ export default function RequestDetailPage() {
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_330px]">
         <div className="space-y-5">
+          {(isOwner || isAssignedTech) && (
+            <Suspense fallback={<div className="card p-5 text-sm text-slate-500">Loading map...</div>}>
+              <RequestLocationMap request={request} />
+            </Suspense>
+          )}
+
           {request.status === 'cancelled' && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
               <p className="font-semibold">This request was cancelled.</p>

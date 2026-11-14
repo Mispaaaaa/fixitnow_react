@@ -33,11 +33,49 @@ const EMPTY_FORM = {
   timeSlot: '10:00-12:00',
   addressMode: 'saved',
   savedAddressId: '',
+  addressLabel: '',
   address: '',
   city: '',
   lat: '',
   lng: '',
 };
+
+function formatReverseGeocodedAddress(result, serviceCities) {
+  const address = result.address || {};
+  const supportedCity = (value) =>
+    serviceCities.find((city) => city.toLowerCase() === String(value || '').trim().toLowerCase());
+  const city =
+    [
+      address.municipality,
+      address.city,
+      address.town,
+      address.village,
+      address.city_district,
+      address.suburb,
+      address.county,
+      ...Object.values(address),
+    ]
+      .map(supportedCity)
+      .find(Boolean) || '';
+  const streetParts = [
+    [address.house_number, address.road].filter(Boolean).join(' '),
+    address.building,
+    address.neighbourhood,
+    address.suburb,
+    address.quarter,
+    address.hamlet,
+    address.village,
+    address.residential,
+  ]
+    .map((part) => String(part || '').trim())
+    .filter((part) => part && part.toLowerCase() !== city.toLowerCase())
+    .filter((part, index, parts) => parts.findIndex((item) => item.toLowerCase() === part.toLowerCase()) === index);
+
+  return {
+    address: streetParts.join(', ') || result.display_name || '',
+    city,
+  };
+}
 
 export default function RequestFormPage() {
   const { id } = useParams();
@@ -49,6 +87,7 @@ export default function RequestFormPage() {
   const [preferredId, setPreferredId] = useState(searchParams.get('technicianId'));
   const [photos, setPhotos] = useState([]);
   const [formError, setFormError] = useState('');
+  const [locating, setLocating] = useState(false);
   const photosRef = useRef([]);
   const initialized = useRef(false);
 
@@ -82,6 +121,8 @@ export default function RequestFormPage() {
     watch,
     reset,
     setValue,
+    getValues,
+    trigger,
     formState: { errors },
   } = useForm({ defaultValues: EMPTY_FORM });
 
@@ -128,6 +169,7 @@ export default function RequestFormPage() {
         timeSlot: request.timeSlot,
         addressMode: 'manual',
         savedAddressId: '',
+        addressLabel: '',
         address: request.address || '',
         city: request.city || '',
         lat: request.lat === null || request.lat === undefined ? '' : Number(request.lat),
@@ -165,6 +207,21 @@ export default function RequestFormPage() {
 
   const updateMutation = useMutation({
     mutationFn: (payload) => api.patch(`/requests/${id}`, payload).then((res) => res.data.data.request),
+  });
+
+  const saveAddressMutation = useMutation({
+    mutationFn: (values) => api.post('/users/me/addresses', values).then((res) => res.data.data),
+    onSuccess: (address) => {
+      queryClient.setQueryData(['addresses', 'list'], (current) => [
+        address,
+        ...(current || []).filter((item) => item.id !== address.id),
+      ]);
+      queryClient.invalidateQueries({ queryKey: ['addresses'] });
+      setValue('addressMode', 'saved', { shouldDirty: true });
+      setValue('savedAddressId', String(address.id), { shouldDirty: true });
+      toast.success('Address added to your saved addresses.');
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, 'Address could not be saved.')),
   });
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
@@ -237,19 +294,92 @@ export default function RequestFormPage() {
     });
   }
 
-  function useMyLocation() {
+  async function useMyLocation() {
     if (!navigator.geolocation) {
       toast.error('Location is not available in this browser.');
       return;
     }
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setValue('lat', Number(position.coords.latitude.toFixed(7)), { shouldValidate: true });
-        setValue('lng', Number(position.coords.longitude.toFixed(7)), { shouldValidate: true });
-        toast.success('Coordinates added. Add your street address and city.');
-      },
-      () => toast.error('We could not read your location. Enter the coordinates manually.')
+    setLocating(true);
+    let coordinatesAdded = false;
+    try {
+      const position = await new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+        })
+      );
+      const lat = Number(position.coords.latitude.toFixed(7));
+      const lng = Number(position.coords.longitude.toFixed(7));
+      setValue('lat', lat, { shouldValidate: true, shouldDirty: true });
+      setValue('lng', lng, { shouldValidate: true, shouldDirty: true });
+      coordinatesAdded = true;
+
+      const params = new URLSearchParams({
+        format: 'jsonv2',
+        addressdetails: '1',
+        zoom: '18',
+        lat: String(lat),
+        lon: String(lng),
+      });
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`);
+      if (!response.ok) throw new Error(`Address lookup failed (${response.status})`);
+      const result = await response.json();
+      const location = formatReverseGeocodedAddress(result, serviceCities || []);
+      setValue('address', location.address, { shouldValidate: true, shouldDirty: true });
+      setValue('city', location.city, { shouldValidate: true, shouldDirty: true });
+
+      if (location.address && location.city) {
+        toast.success('Location filled. Please review the detected address.');
+      } else {
+        toast.warning('Coordinates were added. Review the address and choose a supported municipality.');
+      }
+    } catch (error) {
+      if (typeof error?.code === 'number') {
+        toast.error('We could not read your location. Check your browser permission and try again.');
+      } else if (coordinatesAdded) {
+        toast.warning('Coordinates were added, but address lookup failed. Enter the address and municipality manually.');
+      } else {
+        toast.error(apiErrorMessage(error, 'We could not read your location. Try again or enter it manually.'));
+      }
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  async function saveManualAddress() {
+    const valid = await trigger(['address', 'city', 'lat', 'lng']);
+    if (!valid) {
+      toast.error('Complete the address, municipality and coordinates before saving.');
+      return;
+    }
+
+    const values = getValues();
+    if (!values.addressLabel.trim()) {
+      toast.error('Enter a label such as Home or Office before saving.');
+      return;
+    }
+    const address = {
+      label: values.addressLabel.trim(),
+      address: values.address.trim(),
+      city: values.city,
+      lat: Number(values.lat),
+      lng: Number(values.lng),
+      isDefault: false,
+    };
+    const duplicate = addresses.find(
+      (item) =>
+        item.address.toLowerCase() === address.address.toLowerCase() &&
+        item.city === address.city &&
+        Number(item.lat) === address.lat &&
+        Number(item.lng) === address.lng
     );
+    if (duplicate) {
+      setValue('addressMode', 'saved', { shouldDirty: true });
+      setValue('savedAddressId', String(duplicate.id), { shouldDirty: true });
+      toast.success('This address is already saved and has been selected.');
+      return;
+    }
+    saveAddressMutation.mutate(address);
   }
 
   async function onSubmit(values) {
@@ -552,9 +682,14 @@ export default function RequestFormPage() {
                         </select>
                       </Field>
                       <div className="flex items-end">
-                        <button type="button" className="btn-secondary w-full" onClick={useMyLocation}>
-                          <Icon name="locate" className="h-4 w-4" />
-                          Use my location
+                        <button
+                          type="button"
+                          className="btn-secondary w-full"
+                          onClick={useMyLocation}
+                          disabled={locating}
+                        >
+                          {locating ? <Spinner className="h-4 w-4" /> : <Icon name="locate" className="h-4 w-4" />}
+                          {locating ? 'Finding your address...' : 'Use my location'}
                         </button>
                       </div>
                     </div>
@@ -588,9 +723,39 @@ export default function RequestFormPage() {
                         />
                       </Field>
                     </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <Field
+                        label="Save this address as"
+                        htmlFor="addressLabel"
+                        error={errors.addressLabel?.message}
+                        hint="For example: Home or Office"
+                      >
+                        <input
+                          id="addressLabel"
+                          className="input"
+                          placeholder="Home, Office, or another label"
+                          maxLength={80}
+                          {...register('addressLabel', {
+                            maxLength: { value: 80, message: 'Keep the label under 80 characters' },
+                          })}
+                        />
+                      </Field>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm mt-3"
+                        onClick={saveManualAddress}
+                        disabled={saveAddressMutation.isPending}
+                      >
+                        {saveAddressMutation.isPending ? (
+                          <Spinner className="h-4 w-4" />
+                        ) : (
+                          <Icon name="plus" className="h-4 w-4" />
+                        )}
+                        Save address for future requests
+                      </button>
+                    </div>
                     <p className="text-[11px] leading-relaxed text-slate-400">
-                      Coordinates power the service map and arrival view. A pin picker will be added
-                      in the location phase.
+                      Coordinates power the service map and arrival view. Address details are provided by OpenStreetMap; please verify them before booking.
                     </p>
                   </div>
                 )}

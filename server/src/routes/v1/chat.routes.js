@@ -3,12 +3,14 @@ import { authenticate } from '../../middleware/auth.js';
 import { validateBody, validateQuery } from '../../middleware/validate.js';
 import { imageUploader } from '../../middleware/upload.js';
 import { createConversationSchema, messageQuerySchema } from '../../validators/chat.schema.js';
+import { locationCoordinatesSchema } from '../../validators/location.schema.js';
 import {
   createConversation,
   getConversation,
   listConversations,
   listMessages,
   readConversation,
+  shareRequestLocation,
   sendMessage,
   unreadCount,
 } from '../../controllers/chat.controller.js';
@@ -22,6 +24,7 @@ router.post('/', validateBody(createConversationSchema), createConversation);
 router.get('/:id/messages', validateQuery(messageQuerySchema), listMessages);
 router.get('/:id', getConversation);
 router.post('/:id/messages', imageUploader('chat').single('image'), sendMessage);
+router.post('/:id/location', validateBody(locationCoordinatesSchema), shareRequestLocation);
 router.patch('/:id/read', readConversation);
 
 export default router;

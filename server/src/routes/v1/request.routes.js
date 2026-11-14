@@ -21,7 +21,12 @@ import {
   updateRequestStatus,
   cancelRequest,
   deleteRequest,
+  getRequestLocation,
+  startRequestLocation,
+  updateRequestLocation,
+  stopRequestLocation,
 } from '../../controllers/request.controller.js';
+import { locationCoordinatesSchema } from '../../validators/location.schema.js';
 
 const router = Router();
 router.use(authenticate);
@@ -50,6 +55,20 @@ router.patch(
   validateBody(requestStatusSchema),
   updateRequestStatus
 );
+router.get('/:id/location', getRequestLocation);
+router.post(
+  '/:id/location',
+  authorize('technician'),
+  validateBody(locationCoordinatesSchema),
+  startRequestLocation
+);
+router.patch(
+  '/:id/location',
+  authorize('technician'),
+  validateBody(locationCoordinatesSchema),
+  updateRequestLocation
+);
+router.delete('/:id/location', authorize('technician'), stopRequestLocation);
 router.patch(
   '/:id/cancel',
   authorize('customer', 'admin'),
