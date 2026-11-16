@@ -15,7 +15,7 @@ if (!to) {
 try {
   await verifyEmailTransport();
   console.log(
-    `SMTP connection OK (${hasGoogleOAuthCredentials() ? 'Google OAuth2 refresh token' : 'Gmail App Password'})`
+    `Email transport OK (${hasGoogleOAuthCredentials() ? 'Gmail API OAuth2' : 'Gmail App Password SMTP'})`
   );
   const info = await sendMail({
     to,

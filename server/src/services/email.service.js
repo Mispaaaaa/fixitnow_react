@@ -2,6 +2,9 @@ import nodemailer from 'nodemailer';
 import { env } from '../config/env.js';
 import ApiError from '../utils/ApiError.js';
 
+let cachedAccessToken = null;
+let cachedAccessTokenExpiry = 0;
+
 export function hasGoogleOAuthCredentials() {
   return Boolean(env.google.clientId && env.google.clientSecret && env.google.refreshToken);
 }
@@ -14,33 +17,99 @@ export function isEmailConfigured() {
   );
 }
 
-function createTransporter() {
-  const options = {
+function createSmtpTransporter() {
+  return nodemailer.createTransport({
     host: env.smtp.host,
     port: env.smtp.port,
     secure: env.smtp.port === 465,
     connectionTimeout: 15000,
     greetingTimeout: 15000,
     socketTimeout: 20000,
-  };
-
-  if (hasGoogleOAuthCredentials()) {
-    return nodemailer.createTransport({
-      ...options,
-      auth: {
-        type: 'OAuth2',
-        user: env.smtp.user,
-        clientId: env.google.clientId,
-        clientSecret: env.google.clientSecret,
-        refreshToken: env.google.refreshToken,
-      },
-    });
-  }
-
-  return nodemailer.createTransport({
-    ...options,
     auth: { user: env.smtp.user, pass: env.smtp.appPassword },
   });
+}
+
+async function getGoogleAccessToken() {
+  if (cachedAccessToken && Date.now() < cachedAccessTokenExpiry - 60000) {
+    return cachedAccessToken;
+  }
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: env.google.clientId,
+      client_secret: env.google.clientSecret,
+      refresh_token: env.google.refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  const body = await response.text();
+  if (!response.ok) {
+    const error = new Error('Google OAuth token request failed.');
+    error.code = 'GOOGLE_OAUTH';
+    error.responseCode = response.status;
+    error.details = body;
+    throw error;
+  }
+
+  const data = JSON.parse(body);
+  cachedAccessToken = data.access_token;
+  cachedAccessTokenExpiry = Date.now() + Number(data.expires_in || 3600) * 1000;
+  return cachedAccessToken;
+}
+
+function encodeHeader(value) {
+  const clean = String(value).replace(/[\r\n]+/g, ' ');
+  return /^[\x20-\x7E]*$/.test(clean)
+    ? clean
+    : `=?UTF-8?B?${Buffer.from(clean, 'utf8').toString('base64')}?=`;
+}
+
+function base64Lines(value) {
+  return Buffer.from(value, 'utf8')
+    .toString('base64')
+    .replace(/.{1,76}/g, '$&\r\n')
+    .trimEnd();
+}
+
+async function sendViaGmailApi({ to, subject, text, html }) {
+  const accessToken = await getGoogleAccessToken();
+  const from = String(env.smtp.from).replace(/[\r\n]+/g, ' ');
+  const recipient = String(to).replace(/[\r\n]+/g, ' ');
+
+  const headers = [
+    `From: ${from}`,
+    `To: ${recipient}`,
+    `Subject: ${encodeHeader(subject)}`,
+    'MIME-Version: 1.0',
+    `Content-Type: ${html ? 'text/html' : 'text/plain'}; charset="UTF-8"`,
+    'Content-Transfer-Encoding: base64',
+  ];
+  const body = base64Lines(html || text || '');
+  const raw = Buffer.from(`${headers.join('\r\n')}\r\n\r\n${body}`, 'utf8').toString('base64url');
+
+  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ raw }),
+  });
+
+  const responseBody = await response.text();
+  if (!response.ok) {
+    const error = new Error('Gmail API rejected the message.');
+    error.code = 'GMAIL_API';
+    error.responseCode = response.status;
+    error.details = responseBody;
+    throw error;
+  }
+
+  const data = JSON.parse(responseBody);
+  return { accepted: [recipient], messageId: data.id, response: 'Gmail API' };
 }
 
 export async function sendMail(message) {
@@ -50,8 +119,12 @@ export async function sendMail(message) {
       'Email is not configured. Set Gmail OAuth2 or App Password credentials in server/.env.'
     );
   }
-  const transporter = createTransporter();
-  return transporter.sendMail({ from: env.smtp.from, ...message });
+
+  if (hasGoogleOAuthCredentials()) {
+    return sendViaGmailApi(message);
+  }
+
+  return createSmtpTransporter().sendMail({ from: env.smtp.from, ...message });
 }
 
 export async function verifyEmailTransport() {
@@ -61,7 +134,13 @@ export async function verifyEmailTransport() {
       'Email is not configured. Set Gmail OAuth2 or App Password credentials in server/.env.'
     );
   }
-  await createTransporter().verify();
+
+  if (hasGoogleOAuthCredentials()) {
+    await getGoogleAccessToken();
+    return;
+  }
+
+  await createSmtpTransporter().verify();
 }
 
 export async function sendPasswordResetEmail({ to, name, token }) {
@@ -90,11 +169,12 @@ export async function sendPasswordResetEmail({ to, name, token }) {
     });
   } catch (error) {
     console.error('Gmail could not deliver a password recovery email.', {
-      transport: hasGoogleOAuthCredentials() ? 'oauth2' : 'app-password',
+      transport: hasGoogleOAuthCredentials() ? 'gmail-api-oauth2' : 'app-password',
       code: error.code || 'UNKNOWN',
       responseCode: error.responseCode,
       command: error.command,
       message: error.message,
+      details: error.details,
     });
     throw new ApiError(
       503,
