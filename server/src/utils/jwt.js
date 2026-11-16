@@ -27,10 +27,13 @@ export function hashToken(token) {
 }
 
 export function refreshCookieOptions() {
+  const secure =
+    env.cookieSecure ??
+    (env.clientUrl.startsWith('https://') || env.cookieSameSite === 'none');
   return {
     httpOnly: true,
-    secure: env.nodeEnv === 'production',
-    sameSite: 'lax',
+    secure,
+    sameSite: env.cookieSameSite,
     path: '/api/v1/auth',
     maxAge: env.jwt.refreshDays * 24 * 60 * 60 * 1000,
   };

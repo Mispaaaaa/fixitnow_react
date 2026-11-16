@@ -18,7 +18,7 @@ function respond(ack, payload) {
 
 export function initSocket(server) {
   const io = new Server(server, {
-    cors: { origin: env.clientUrl, credentials: true },
+    cors: { origin: env.corsOrigins, credentials: true },
     // Forced WebSocket transport per the school requirement.
     transports: ['websocket'],
   });

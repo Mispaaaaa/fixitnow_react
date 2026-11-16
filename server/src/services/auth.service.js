@@ -13,7 +13,7 @@ import {
 import { env } from '../config/env.js';
 import ApiError from '../utils/ApiError.js';
 import { generateRefreshToken, hashToken, refreshCookieOptions } from '../utils/jwt.js';
-import { sendPasswordResetEmail } from './email.service.js';
+import { isEmailConfigured, sendPasswordResetEmail } from './email.service.js';
 
 export const technicianProfileInclude = {
   association: 'technicianProfile',
@@ -125,8 +125,11 @@ export async function revokeAllSessions(userId) {
 }
 
 export async function requestPasswordReset(email) {
-  if (!env.smtp.user || !env.smtp.appPassword || !env.smtp.from) {
-    throw new ApiError(503, 'Password recovery email is not configured. Set Gmail SMTP credentials in server/.env.');
+  if (!isEmailConfigured()) {
+    throw new ApiError(
+      503,
+      'Password recovery email is not configured. Set Gmail OAuth2 or App Password credentials in server/.env.'
+    );
   }
   const user = await User.findOne({ where: { email, isActive: true } });
   if (!user) return;

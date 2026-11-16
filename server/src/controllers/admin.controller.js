@@ -23,6 +23,8 @@ import { env } from '../config/env.js';
 import path from 'node:path';
 import { ensureRequestConversation } from '../services/chat.service.js';
 import { recalculateTechnicianRating } from '../services/rating.service.js';
+import { revokeAllSessions } from '../services/auth.service.js';
+import { getIo } from '../sockets/registry.js';
 
 const userAttributes = ['id', 'name', 'email', 'phone', 'role', 'isActive', 'createdAt'];
 
@@ -99,7 +101,6 @@ export const assignAdminRequest = asyncHandler(async (req, res) => {
 export const listVerificationQueue = asyncHandler(async (req, res) => {
   const where = {};
   if (req.validatedQuery.status) where.verificationStatus = req.validatedQuery.status;
-  else where.verificationStatus = 'pending';
   const data = await pagedList(TechnicianProfile, req, {
     where,
     include: [
@@ -175,6 +176,10 @@ export const updateUserStatus = asyncHandler(async (req, res) => {
   }
   const before = { isActive: user.isActive };
   await user.update({ isActive: req.body.isActive });
+  if (!user.isActive) {
+    await revokeAllSessions(user.id);
+    getIo()?.in(`user:${user.id}`).disconnectSockets(true);
+  }
   await logAudit({
     actorId: req.user.id,
     action: req.body.isActive ? 'user.activated' : 'user.deactivated',

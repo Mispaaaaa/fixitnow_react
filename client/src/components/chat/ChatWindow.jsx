@@ -99,7 +99,8 @@ export default function ChatWindow({ conversation, onBack }) {
     ? [conversation.customer?.name, conversation.technician?.name].filter(Boolean).join(' / ') ||
       'Conversation'
     : otherUser?.name || 'Conversation';
-  const isClosed = conversation.request?.status === 'cancelled';
+  const isClosed =
+    conversation.request?.status === 'cancelled' || conversation.request?.status === 'pending';
   const canReply = !isAdmin && !isClosed;
   const canShareLocation =
     canReply &&
@@ -243,8 +244,15 @@ export default function ChatWindow({ conversation, onBack }) {
     stopTyping();
     try {
       if (socket?.connected) {
-        const result = await new Promise((resolve) => {
-          socket.emit('chat:send', { conversationId: conversation.id, body }, resolve);
+        const result = await new Promise((resolve, reject) => {
+          const timer = window.setTimeout(
+            () => reject(new Error('Message timed out. Check your connection and try again.')),
+            12000
+          );
+          socket.emit('chat:send', { conversationId: conversation.id, body }, (response) => {
+            window.clearTimeout(timer);
+            resolve(response);
+          });
         });
         if (!result?.ok) throw new Error(result?.error || 'Message could not be sent');
         appendMessage(result.message);
@@ -261,7 +269,6 @@ export default function ChatWindow({ conversation, onBack }) {
       setSending(false);
     }
   }
-
   async function uploadImage(event) {
     const file = event.target.files?.[0];
     event.target.value = '';

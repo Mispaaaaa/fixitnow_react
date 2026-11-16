@@ -52,17 +52,19 @@ export default function RequestLocationMap({ request }) {
   const share = locationQuery.data;
   const shareLatitude = share?.lat;
   const shareLongitude = share?.lng;
-  const customerPosition = useMemo(
-    () => [Number(request.lat), Number(request.lng)],
-    [request.lat, request.lng]
-  );
-  const technicianPosition = useMemo(
-    () =>
-      shareLatitude !== undefined && shareLongitude !== undefined
-        ? [Number(shareLatitude), Number(shareLongitude)]
-        : null,
-    [shareLatitude, shareLongitude]
-  );
+  const customerPosition = useMemo(() => {
+    if (request.lat === null || request.lat === undefined || request.lat === '') return null;
+    if (request.lng === null || request.lng === undefined || request.lng === '') return null;
+    const lat = Number(request.lat);
+    const lng = Number(request.lng);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+  }, [request.lat, request.lng]);
+  const technicianPosition = useMemo(() => {
+    if (shareLatitude === undefined || shareLongitude === undefined) return null;
+    const lat = Number(shareLatitude);
+    const lng = Number(shareLongitude);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+  }, [shareLatitude, shareLongitude]);
   const mapPoints = useMemo(
     () => (technicianPosition ? [customerPosition, technicianPosition] : [customerPosition]),
     [customerPosition, technicianPosition]
@@ -172,7 +174,7 @@ export default function RequestLocationMap({ request }) {
   }
 
   if (!canTrack) return null;
-  if (!Number.isFinite(customerPosition[0]) || !Number.isFinite(customerPosition[1])) return null;
+  if (!customerPosition) return null;
 
   return (
     <section className="card overflow-hidden">

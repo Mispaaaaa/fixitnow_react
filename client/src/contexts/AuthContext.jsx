@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import api, { getToken, setToken } from '../lib/api';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [token, setTokenState] = useState(getToken());
   const [loading, setLoading] = useState(true);
@@ -13,6 +15,7 @@ export function AuthProvider({ children }) {
       setTokenState(event.detail);
     }
     function onExpired() {
+      queryClient.clear();
       setUser(null);
       setTokenState(null);
     }
@@ -22,7 +25,7 @@ export function AuthProvider({ children }) {
       window.removeEventListener('session:token', onToken);
       window.removeEventListener('session:expired', onExpired);
     };
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     let active = true;
@@ -50,18 +53,20 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (credentials) => {
     const response = await api.post('/auth/login', credentials);
     const { accessToken, user: nextUser } = response.data.data;
+    queryClient.clear();
     setToken(accessToken);
     setUser(nextUser);
     return nextUser;
-  }, []);
+  }, [queryClient]);
 
   const register = useCallback(async (payload) => {
     const response = await api.post('/auth/register', payload);
     const { accessToken, user: nextUser } = response.data.data;
+    queryClient.clear();
     setToken(accessToken);
     setUser(nextUser);
     return nextUser;
-  }, []);
+  }, [queryClient]);
 
   const logout = useCallback(async () => {
     try {
@@ -69,9 +74,10 @@ export function AuthProvider({ children }) {
     } catch {
       // Even if the request fails, clear the local session.
     }
+    queryClient.clear();
     setToken(null);
     setUser(null);
-  }, []);
+  }, [queryClient]);
 
   const refreshUser = useCallback(async () => {
     const response = await api.get('/auth/me');

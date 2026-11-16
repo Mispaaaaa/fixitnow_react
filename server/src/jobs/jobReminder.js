@@ -2,17 +2,21 @@ import { Op } from 'sequelize';
 import { ServiceRequest } from '../models/index.js';
 import { notifyUser } from '../services/notification.service.js';
 
-let available = true;
+function todayLocal() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
 
 /**
  * Notifies both parties when an accepted/in-progress job starts within the next
  * hour. `reminder_sent_at` guards against duplicate notifications.
  */
 export async function sendJobReminders() {
-  if (!available) return 0;
   try {
     const now = new Date();
-    const today = now.toISOString().slice(0, 10);
+    const today = todayLocal();
     const requests = await ServiceRequest.findAll({
       where: {
         status: { [Op.in]: ['accepted', 'on_the_way'] },
@@ -43,7 +47,7 @@ export async function sendJobReminders() {
             type: 'job_reminder',
             title,
             body,
-            data: { requestId: request.id, url: `/technician/jobs/${request.id}` },
+            data: { requestId: request.id, url: `/requests/${request.id}` },
           }),
         ]);
         request.reminderSentAt = new Date();
@@ -52,8 +56,8 @@ export async function sendJobReminders() {
       }
     }
     return sent;
-  } catch {
-    available = false;
+  } catch (error) {
+    console.error('Job reminder scan failed:', error.message);
     return 0;
   }
 }

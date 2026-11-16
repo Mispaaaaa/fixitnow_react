@@ -13,7 +13,8 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --forceExit",
     "lint": "eslint src",
     "format": "prettier --write .",
-    "vapid": "node src/db/generateVapid.js"
+    "vapid": "node src/db/generateVapid.js",
+    "email:test": "node scripts/testEmail.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

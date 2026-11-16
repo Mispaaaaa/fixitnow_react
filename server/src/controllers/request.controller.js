@@ -147,16 +147,25 @@ async function assertCategory(categoryId) {
   return category;
 }
 
-async function preferredTechnician(id, city) {
+async function preferredTechnician(id, city, categoryId) {
   const profile = await TechnicianProfile.findOne({
-    where: { userId: id, verificationStatus: 'verified' },
+    where: { userId: id, verificationStatus: 'verified', isAvailable: true },
     include: [
       { association: 'user', attributes: ['id', 'name', 'isActive'], where: { isActive: true } },
       { association: 'areas', where: { city }, required: true },
+      {
+        association: 'skills',
+        where: { id: categoryId },
+        attributes: ['id'],
+        through: { attributes: [] },
+        required: true,
+      },
     ],
   });
   if (!profile) {
-    throw ApiError.badRequest('The selected technician does not serve this location');
+    throw ApiError.badRequest(
+      'The selected technician is unavailable or does not serve this location and service category'
+    );
   }
   return profile;
 }
@@ -207,7 +216,12 @@ export const createRequest = asyncHandler(async (req, res) => {
 
   let technician = null;
   if (body.preferredTechnicianId) {
-    technician = await preferredTechnician(body.preferredTechnicianId, address.city);
+    technician = await preferredTechnician(body.preferredTechnicianId, address.city, body.categoryId);
+    await ensureNoScheduleConflict({
+      technicianId: technician.userId,
+      preferredDate: body.preferredDate,
+      timeSlot: body.timeSlot,
+    });
   }
 
   const request = await sequelize.transaction(async (transaction) => {
@@ -506,7 +520,7 @@ export const updateRequest = asyncHandler(async (req, res) => {
 
   const address = await resolveAddress(body, req.user.id, request);
   Object.assign(updates, address);
-  for (const key of addressKeys) delete updates[key];
+  delete updates.savedAddressId;
 
   const scheduleChanged =
     (body.preferredDate && body.preferredDate !== request.preferredDate) ||

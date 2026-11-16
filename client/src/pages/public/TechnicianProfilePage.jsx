@@ -149,7 +149,9 @@ export default function TechnicianProfilePage() {
                 <div className="rounded-xl bg-slate-50 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Rate</p>
                   <p className="mt-0.5 font-bold text-slate-900">
-                    {profile.hourlyRate ? `${formatCurrency(profile.hourlyRate)}/hr` : 'Quote on visit'}
+                    {profile.hourlyRate !== null && profile.hourlyRate !== undefined
+                      ? `${formatCurrency(profile.hourlyRate)}/hr`
+                      : 'Quote on visit'}
                   </p>
                 </div>
                 <div className="rounded-xl bg-slate-50 p-3">
@@ -264,9 +266,14 @@ export default function TechnicianProfilePage() {
               Describe the issue and choose a preferred date. You can reschedule before work
               starts.
             </p>
-            <button type="button" className="btn-primary mt-4 w-full" onClick={startRequest}>
+            <button
+              type="button"
+              className="btn-primary mt-4 w-full"
+              onClick={startRequest}
+              disabled={!profile.isAvailable}
+            >
               <Icon name="calendar" className="h-4 w-4" />
-              Request this technician
+              {profile.isAvailable ? 'Request this technician' : 'Currently not accepting jobs'}
             </button>
             {canConsult && (
               <>

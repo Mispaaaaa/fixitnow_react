@@ -53,3 +53,13 @@ export const announcementSchema = z.object({
   endsAt: z.coerce.date().nullable().optional(),
   isActive: z.boolean().optional(),
 });
+
+export const announcementUpdateSchema = z.object({
+  role: z.enum(['customer', 'technician', 'all']).optional(),
+  title: z.string().trim().min(2).max(180).optional(),
+  text: z.string().trim().min(2).optional(),
+  style: z.enum(ANNOUNCEMENT_STYLES).optional(),
+  startsAt: z.coerce.date().nullable().optional(),
+  endsAt: z.coerce.date().nullable().optional(),
+  isActive: z.boolean().optional(),
+});

@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import cors from 'cors';
@@ -21,7 +22,7 @@ app.use(
   cors({
     origin(origin, callback) {
       // Requests without an Origin (curl, tests, service worker) are allowed.
-      if (!origin || origin === env.clientUrl) return callback(null, true);
+      if (!origin || env.corsOrigins.includes(origin)) return callback(null, true);
       return callback(null, false);
     },
     credentials: true,
@@ -42,6 +43,19 @@ app.use(
 );
 
 app.use('/api/v1', apiRoutes);
+
+const clientIndex = path.join(env.clientDist, 'index.html');
+if (fs.existsSync(clientIndex)) {
+  app.use(express.static(env.clientDist, { index: false, maxAge: '1h' }));
+  app.use((req, res, next) => {
+    if (req.method !== 'GET') return next();
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/socket.io')) {
+      return next();
+    }
+    return res.sendFile(clientIndex);
+  });
+}
+
 app.use(notFoundHandler);
 app.use(errorHandler);
 

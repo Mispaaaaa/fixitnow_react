@@ -4,6 +4,7 @@ import { validateBody, validateQuery } from '../../middleware/validate.js';
 import {
   adminListSchema,
   announcementSchema,
+  announcementUpdateSchema,
   categorySchema,
   categoryUpdateSchema,
   contentSchema,
@@ -56,7 +57,7 @@ router.get('/content/:key', getAdminContent);
 router.put('/content/:key', validateBody(contentSchema), updateAdminContent);
 router.get('/announcements', listAdminAnnouncements);
 router.post('/announcements', validateBody(announcementSchema), createAdminAnnouncement);
-router.patch('/announcements/:id', validateBody(announcementSchema.partial()), updateAdminAnnouncement);
+router.patch('/announcements/:id', validateBody(announcementUpdateSchema), updateAdminAnnouncement);
 router.get('/archive', validateQuery(adminListSchema), listAdminArchive);
 router.post('/archive/:type/:id/restore', restoreAdminArchive);
 router.get('/audit', validateQuery(adminListSchema), listAdminAudit);
